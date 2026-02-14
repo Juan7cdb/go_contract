@@ -1,0 +1,89 @@
+"""Main FastAPI application entry point for Go Contract AI."""
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from app.core.config import settings
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    description="AI-powered contract generation and legal assistance API",
+    version="1.0.0",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None
+)
+
+# Attach limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS - Secure configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
+)
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint - no auth required."""
+    return {"status": "ok", "project": settings.PROJECT_NAME}
+
+
+# Global exception handler to prevent internal error exposure
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception(f"Unhandled exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An internal server error occurred"}
+    )
+
+
+# =============================================================================
+# ROUTERS - All CRUD endpoints organized by resource
+# =============================================================================
+
+from app.routers import (
+    auth,           # Authentication: register, login, logout, password reset
+    profile,        # Profile CRUD: get, update, delete user profile
+    plans,          # Plans: list, get subscription plans (read-only)
+    subscriptions,  # Subscriptions CRUD: create, read, update, delete
+    templates,      # Templates: list, get contract templates (read-only)
+    contracts,      # Contracts CRUD: generate, create, read, update, delete
+    agents,         # Agents: list, get, chat with AI agents
+    chat,           # General chat with AI (non-agent)
+)
+
+# Authentication & User Management
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(profile.router, prefix=f"{settings.API_V1_STR}")
+
+# Subscription Management
+app.include_router(plans.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(subscriptions.router, prefix=f"{settings.API_V1_STR}")
+
+# Contract Generation & Management
+app.include_router(templates.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(contracts.router, prefix=f"{settings.API_V1_STR}/contracts")
+
+# AI Features
+app.include_router(agents.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(chat.router, prefix=f"{settings.API_V1_STR}/chat")

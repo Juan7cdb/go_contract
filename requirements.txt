@@ -1,0 +1,16 @@
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+pydantic==2.6.1
+pydantic-settings==2.2.1
+supabase==2.0.3
+google-generativeai==0.3.2
+python-dotenv==1.0.1
+python-multipart==0.0.9
+email-validator==2.1.0.post1
+# Security
+PyJWT==2.8.0
+python-jose[cryptography]==3.3.0
+slowapi==0.1.9
+# Async utilities
+httpx==0.24.1
+httpcore==0.17.3
