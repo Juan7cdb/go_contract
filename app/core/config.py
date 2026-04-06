@@ -11,7 +11,10 @@ class Settings(BaseSettings):
     
     # Security
     FRONTEND_URL: str = "http://localhost:5173"
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:5173"]
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "https://go-contract-frontend.vercel.app",
+    ]
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
