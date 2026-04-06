@@ -2,9 +2,12 @@
 import logging
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
 
-from app.core.client import get_supabase_client
-from app.dependencies.auth import get_current_user, TokenPayload
+from app.core.database import get_db
+from app.models import User, TemplateContract
+from app.dependencies.auth import get_current_user
 from app.schemas.template_contract import (
     TemplateContractResponse,
     TemplateContractListResponse,
@@ -16,27 +19,41 @@ router = APIRouter(prefix="/templates", tags=["Contract Templates"])
 
 @router.get("/", response_model=TemplateContractListResponse)
 async def list_templates(
-    current_user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     search: Optional[str] = Query(None, description="Search in title or description"),
 ):
     """
     List all available contract templates.
-    
-    Returns all templates that can be used to generate contracts.
     """
-    supabase = get_supabase_client()
-    
     try:
-        query = supabase.table("template_contracts").select("*", count="exact")
+        query = select(TemplateContract)
         
         if search:
-            query = query.or_(f"title.ilike.%{search}%,description.ilike.%{search}%")
+            search_filter = f"%{search}%"
+            query = query.where(
+                or_(
+                    TemplateContract.title.ilike(search_filter),
+                    TemplateContract.description.ilike(search_filter)
+                )
+            )
         
-        response = query.order("title").execute()
+        result = await db.execute(query.order_by(TemplateContract.title))
+        templates = result.scalars().all()
         
         return TemplateContractListResponse(
-            templates=[TemplateContractResponse(**t) for t in response.data],
-            total=response.count or len(response.data)
+            templates=[
+                TemplateContractResponse(
+                    id=str(t.id),
+                    title=t.title,
+                    description=t.description,
+                    rules=t.rules,
+                    category=t.category,
+                    subcategory=t.subcategory,
+                    created_at=t.created_at
+                ) for t in templates
+            ],
+            total=len(templates)
         )
         
     except Exception as e:
@@ -50,25 +67,32 @@ async def list_templates(
 @router.get("/{template_id}", response_model=TemplateContractResponse)
 async def get_template(
     template_id: str,
-    current_user: TokenPayload = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get a specific contract template by ID.
-    
-    Returns the full template details including rules for generation.
     """
-    supabase = get_supabase_client()
-    
     try:
-        response = supabase.table("template_contracts").select("*").eq("id", template_id).single().execute()
+        t_id = int(template_id)
+        result = await db.execute(select(TemplateContract).where(TemplateContract.id == t_id))
+        template = result.scalar_one_or_none()
         
-        if not response.data:
+        if not template:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Template not found"
             )
         
-        return TemplateContractResponse(**response.data)
+        return TemplateContractResponse(
+            id=str(template.id),
+            title=template.title,
+            description=template.description,
+            rules=template.rules,
+            category=template.category,
+            subcategory=template.subcategory,
+            created_at=template.created_at
+        )
         
     except HTTPException:
         raise

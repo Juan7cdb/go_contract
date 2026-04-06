@@ -3,10 +3,13 @@ import logging
 import html
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 
-from app.dependencies.auth import get_current_user, TokenPayload
+from app.dependencies.auth import get_current_user
+from app.models import User, Contract, TemplateContract, Agent
+from app.core.database import get_db
 from app.services.ai_service import ai_service
-from app.core.client import get_supabase_client
 from app.schemas.contract import (
     ContractCreate,
     ContractUpdate,
@@ -45,52 +48,46 @@ def sanitize_inputs(inputs: dict) -> dict:
 @router.post("/generate", response_model=ContractGenerateResponse)
 async def generate_contract(
     request: ContractGenerateRequest,
-    current_user: TokenPayload = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Generate a contract using AI.
-    
-    Uses the template's rules and AI agent to generate a legal contract
-    based on the provided input parameters.
     """
-    supabase = get_supabase_client()
-    
     try:
         # Get template with rules
-        template = supabase.table("template_contracts").select("*").eq(
-            "id", request.template_id
-        ).single().execute()
+        template_id = int(request.template_id)
+        result = await db.execute(select(TemplateContract).where(TemplateContract.id == template_id))
+        template = result.scalar_one_or_none()
         
-        if not template.data:
+        if not template:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Template not found"
             )
         
-        # Get agent for this template (if exists)
-        agent = supabase.table("agents").select("*").eq(
-            "template_id", request.template_id
-        ).limit(1).execute()
-        
-        agent_prompt = agent.data[0]["prompt"] if agent.data else None
+        # Get agent for this template
+        agent_result = await db.execute(select(Agent).where(Agent.template_id == template_id).limit(1))
+        agent = agent_result.scalar_one_or_none()
+        agent_prompt = agent.prompt if agent else None
         
         # Sanitize inputs
         sanitized_inputs = sanitize_inputs(request.inputs)
         
         # Generate contract with AI
         content = await ai_service.generate_contract(
-            contract_type=template.data["title"],
+            contract_type=template.title,
             inputs=sanitized_inputs,
-            rules=template.data["rules"],
+            rules=template.rules,
             agent_prompt=agent_prompt
         )
         
-        logger.info(f"Contract generated for user {current_user.sub}: template {request.template_id}")
+        logger.info(f"Contract generated for user {current_user.id}: template {template_id}")
         
         return ContractGenerateResponse(
-            template_id=request.template_id,
+            template_id=str(template_id),
             content=content,
-            suggested_title=f"{template.data['title']} - Generated"
+            suggested_title=f"{template.title} - Generated"
         )
         
     except HTTPException:
@@ -108,45 +105,58 @@ async def generate_contract(
 @router.post("/", response_model=ContractResponse, status_code=status.HTTP_201_CREATED)
 async def create_contract(
     contract_data: ContractCreate,
-    current_user: TokenPayload = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Save a new contract.
-    
-    Creates a new contract record after generation.
     """
-    supabase = get_supabase_client()
-    
     try:
+        template_id = int(contract_data.template_id)
         # Verify template exists
-        template = supabase.table("template_contracts").select("id").eq(
-            "id", contract_data.template_id
-        ).single().execute()
-        
-        if not template.data:
+        template_result = await db.execute(select(TemplateContract.id).where(TemplateContract.id == template_id))
+        if not template_result.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Template not found"
             )
         
-        data = {
-            "user_id": current_user.sub,
-            "template_id": contract_data.template_id,
-            "title": contract_data.title,
-            "description": contract_data.description,
-            "contract_url": contract_data.contract_url,
-        }
-        
-        response = supabase.table("contracts").insert(data).execute()
-        
-        if not response.data:
+        # Check credits
+        if current_user.credits_remaining <= 0:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to save contract"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No credits remaining. Please upgrade your plan."
             )
         
-        logger.info(f"Contract saved for user {current_user.sub}: {contract_data.title}")
-        return ContractResponse(**response.data[0])
+        new_contract = Contract(
+            user_id=current_user.id,
+            template_id=template_id,
+            title=contract_data.title,
+            description=contract_data.description,
+            contract_url=contract_data.contract_url,
+            generated_content=contract_data.generated_content,
+            form_data=contract_data.form_data or {}
+        )
+        
+        # Deduct credit
+        current_user.credits_remaining -= 1
+        
+        db.add(new_contract)
+        db.add(current_user)
+        await db.flush()
+        
+        logger.info(f"Contract saved for user {current_user.id}: {new_contract.title}")
+        return ContractResponse(
+            id=str(new_contract.id),
+            user_id=str(current_user.id),
+            template_id=str(template_id),
+            title=new_contract.title,
+            description=new_contract.description,
+            contract_url=new_contract.contract_url or "",
+            generated_content=new_contract.generated_content,
+            form_data=new_contract.form_data,
+            created_at=new_contract.created_at
+        )
         
     except HTTPException:
         raise
@@ -160,33 +170,46 @@ async def create_contract(
 
 @router.get("/", response_model=ContractListResponse)
 async def list_contracts(
-    current_user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
     template_id: Optional[str] = None,
 ):
     """
     List all contracts for the current user.
-    
-    Supports pagination and filtering by template.
     """
-    supabase = get_supabase_client()
-    
     try:
-        query = supabase.table("contracts").select("*", count="exact").eq("user_id", current_user.sub)
+        query = select(Contract).where(Contract.user_id == current_user.id)
         
         if template_id:
-            query = query.eq("template_id", template_id)
+            query = query.where(Contract.template_id == int(template_id))
+        
+        # Count total
+        count_query = select(func.count()).select_from(query.subquery())
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
         
         # Pagination
-        offset = (page - 1) * per_page
-        query = query.order("created_at", desc=True).range(offset, offset + per_page - 1)
-        
-        response = query.execute()
+        query = query.order_by(Contract.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+        result = await db.execute(query)
+        contracts = result.scalars().all()
         
         return ContractListResponse(
-            contracts=[ContractResponse(**c) for c in response.data],
-            total=response.count or 0,
+            contracts=[
+                ContractResponse(
+                    id=str(c.id),
+                    user_id=str(c.user_id),
+                    template_id=str(c.template_id),
+                    title=c.title,
+                    description=c.description,
+                    contract_url=c.contract_url or "",
+                    generated_content=c.generated_content,
+                    form_data=c.form_data,
+                    created_at=c.created_at
+                ) for c in contracts
+            ],
+            total=total,
             page=page,
             per_page=per_page
         )
@@ -202,27 +225,34 @@ async def list_contracts(
 @router.get("/{contract_id}", response_model=ContractResponse)
 async def get_contract(
     contract_id: str,
-    current_user: TokenPayload = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get a specific contract by ID.
-    
-    Returns the full contract details. User can only access their own contracts.
     """
-    supabase = get_supabase_client()
-    
     try:
-        response = supabase.table("contracts").select("*").eq(
-            "id", contract_id
-        ).eq("user_id", current_user.sub).single().execute()
+        c_id = int(contract_id)
+        result = await db.execute(
+            select(Contract).where(Contract.id == c_id, Contract.user_id == current_user.id)
+        )
+        contract = result.scalar_one_or_none()
         
-        if not response.data:
+        if not contract:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contract not found"
             )
         
-        return ContractResponse(**response.data)
+        return ContractResponse(
+            id=str(contract.id),
+            user_id=str(contract.user_id),
+            template_id=str(contract.template_id),
+            title=contract.title,
+            description=contract.description,
+            contract_url=contract.contract_url,
+            created_at=contract.created_at
+        )
         
     except HTTPException:
         raise
@@ -238,37 +268,44 @@ async def get_contract(
 async def update_contract(
     contract_id: str,
     contract_data: ContractUpdate,
-    current_user: TokenPayload = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Update an existing contract.
-    
-    Updates only the provided fields. User can only update their own contracts.
     """
-    supabase = get_supabase_client()
-    
     try:
-        # Filter out None values
-        update_data = {k: v for k, v in contract_data.model_dump().items() if v is not None}
+        c_id = int(contract_id)
+        result = await db.execute(
+            select(Contract).where(Contract.id == c_id, Contract.user_id == current_user.id)
+        )
+        contract = result.scalar_one_or_none()
         
-        if not update_data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No fields to update"
-            )
-        
-        response = supabase.table("contracts").update(update_data).eq(
-            "id", contract_id
-        ).eq("user_id", current_user.sub).execute()
-        
-        if not response.data:
+        if not contract:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contract not found"
             )
+            
+        if contract_data.title is not None:
+            contract.title = contract_data.title
+        if contract_data.description is not None:
+            contract.description = contract_data.description
+        if contract_data.contract_url is not None:
+            contract.contract_url = contract_data.contract_url
+            
+        db.add(contract)
         
         logger.info(f"Contract updated: {contract_id}")
-        return ContractResponse(**response.data[0])
+        return ContractResponse(
+            id=str(contract.id),
+            user_id=str(contract.user_id),
+            template_id=str(contract.template_id),
+            title=contract.title,
+            description=contract.description,
+            contract_url=contract.contract_url,
+            created_at=contract.created_at
+        )
         
     except HTTPException:
         raise
@@ -283,25 +320,26 @@ async def update_contract(
 @router.delete("/{contract_id}")
 async def delete_contract(
     contract_id: str,
-    current_user: TokenPayload = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Delete a contract.
-    
-    Permanently deletes the contract. User can only delete their own contracts.
     """
-    supabase = get_supabase_client()
-    
     try:
-        response = supabase.table("contracts").delete().eq(
-            "id", contract_id
-        ).eq("user_id", current_user.sub).execute()
+        c_id = int(contract_id)
+        result = await db.execute(
+            select(Contract).where(Contract.id == c_id, Contract.user_id == current_user.id)
+        )
+        contract = result.scalar_one_or_none()
         
-        if not response.data:
+        if not contract:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contract not found"
             )
+            
+        await db.delete(contract)
         
         logger.info(f"Contract deleted: {contract_id}")
         return {"message": "Contract deleted successfully"}

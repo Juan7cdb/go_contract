@@ -9,13 +9,14 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     
     # Security
-    FRONTEND_URL: str = "http://localhost:3000"  # Change in production
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
+    FRONTEND_URL: str = "http://localhost:5173"
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:5173"]
+    JWT_SECRET: str
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     
-    # Supabase
-    SUPABASE_URL: str
-    SUPABASE_KEY: str  # Service Role Key for backend operations
-    SUPABASE_JWT_SECRET: str = ""  # For local JWT validation (optional but recommended)
+    # Database
+    DATABASE_URL: str
     
     # Google Gemini
     GOOGLE_API_KEY: str

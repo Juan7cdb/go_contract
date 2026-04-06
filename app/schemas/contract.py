@@ -13,7 +13,9 @@ class ContractBase(BaseModel):
 
 class ContractCreate(ContractBase):
     """Schema for creating a contract."""
-    contract_url: str  # URL to generated contract file
+    contract_url: Optional[str] = None # URL to generated contract file
+    generated_content: str = Field(..., description="The AI generated markdown content")
+    form_data: dict = Field(default_factory=dict, description="The original wizard form data")
 
 
 class ContractUpdate(BaseModel):
@@ -30,7 +32,9 @@ class ContractResponse(BaseModel):
     template_id: str
     title: str
     description: str
-    contract_url: str
+    contract_url: Optional[str] = None
+    generated_content: Optional[str] = None
+    form_data: Optional[dict] = None
     created_at: Optional[datetime] = None
 
     class Config:

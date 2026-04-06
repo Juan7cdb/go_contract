@@ -1,6 +1,10 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.core.config import settings
+from app.core.database import get_db
+from app.models import User
 from typing import Any, Optional
 from pydantic import BaseModel
 import jwt
@@ -10,24 +14,18 @@ logger = logging.getLogger(__name__)
 
 auth_scheme = HTTPBearer(auto_error=True)
 
-
 class TokenPayload(BaseModel):
-    """Represents the decoded JWT payload from Supabase."""
-    sub: str  # User ID
-    email: Optional[str] = None
-    role: Optional[str] = None
-    aud: Optional[str] = None
+    """Represents the decoded JWT payload."""
+    sub: str  # User ID (usually email or int id string)
     exp: Optional[int] = None
 
-
 async def get_current_user(
-    token: HTTPAuthorizationCredentials = Depends(auth_scheme)
-) -> TokenPayload:
+    token: HTTPAuthorizationCredentials = Depends(auth_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> User:
     """
-    Validates the Bearer token locally using the Supabase JWT secret.
-    This avoids a network call on every request, improving performance significantly.
-    
-    Falls back to Supabase API validation if JWT_SECRET is not configured.
+    Validates the Bearer token using our own JWT_SECRET.
+    Fetches the user from the PostgreSQL database.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -36,56 +34,35 @@ async def get_current_user(
     )
     
     try:
-        # Prefer local JWT validation if secret is configured
-        if settings.SUPABASE_JWT_SECRET and settings.SUPABASE_JWT_SECRET != "your_jwt_secret_here":
-            payload = jwt.decode(
-                token.credentials,
-                settings.SUPABASE_JWT_SECRET,
-                algorithms=["HS256"],
-                audience="authenticated"
-            )
+        payload = jwt.decode(
+            token.credentials,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        
+        user_id_str: str = payload.get("sub")
+        if user_id_str is None:
+            raise credentials_exception
             
-            user_id = payload.get("sub")
-            if user_id is None:
-                logger.warning("JWT missing 'sub' claim")
-                raise credentials_exception
+        # user_id in payload is the User.id (int) converted to string
+        query = select(User).where(User.id == int(user_id_str))
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
+        
+        if user is None:
+            raise credentials_exception
             
-            return TokenPayload(
-                sub=user_id,
-                email=payload.get("email"),
-                role=payload.get("role"),
-                aud=payload.get("aud"),
-                exp=payload.get("exp")
-            )
-        else:
-            # Fallback: Use Supabase client (sync, but wrapped for async)
-            import asyncio
-            from app.core.client import get_supabase_client
-            
-            supabase = get_supabase_client()
-            user_response = await asyncio.to_thread(
-                supabase.auth.get_user, token.credentials
-            )
-            
-            if not user_response.user:
-                raise credentials_exception
-            
-            return TokenPayload(
-                sub=user_response.user.id,
-                email=user_response.user.email,
-                role=user_response.user.role
-            )
+        return user
             
     except jwt.ExpiredSignatureError:
-        logger.warning("JWT token has expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.InvalidTokenError as e:
+    except (jwt.InvalidTokenError, ValueError) as e:
         logger.warning(f"Invalid JWT token: {e}")
         raise credentials_exception
     except Exception as e:
-        logger.exception("Unexpected error during authentication")
+        logger.exception(f"Unexpected error during authentication: {e}")
         raise credentials_exception

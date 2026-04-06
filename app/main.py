@@ -70,6 +70,8 @@ from app.routers import (
     contracts,      # Contracts CRUD: generate, create, read, update, delete
     agents,         # Agents: list, get, chat with AI agents
     chat,           # General chat with AI (non-agent)
+    drafts,         # Contract drafts: save, list, get, update, delete
+    dashboard,      # Dashboard: user metrics and stats
 )
 
 # Authentication & User Management
@@ -83,6 +85,8 @@ app.include_router(subscriptions.router, prefix=f"{settings.API_V1_STR}")
 # Contract Generation & Management
 app.include_router(templates.router, prefix=f"{settings.API_V1_STR}")
 app.include_router(contracts.router, prefix=f"{settings.API_V1_STR}/contracts")
+app.include_router(drafts.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard")
 
 # AI Features
 app.include_router(agents.router, prefix=f"{settings.API_V1_STR}")

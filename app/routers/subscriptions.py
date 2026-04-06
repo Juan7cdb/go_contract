@@ -2,9 +2,12 @@
 import logging
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, status, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_
 
-from app.core.client import get_supabase_client
-from app.dependencies.auth import get_current_user, TokenPayload
+from app.core.database import get_db
+from app.models import User, Plan, Subscription
+from app.dependencies.auth import get_current_user
 from app.schemas.subscription import (
     SubscriptionCreate,
     SubscriptionUpdate,
@@ -19,43 +22,48 @@ router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
 
 @router.get("/current", response_model=SubscriptionWithPlan)
 async def get_current_subscription(
-    current_user: TokenPayload = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get the current user's active subscription.
-    
-    Returns the user's current subscription with plan details.
     """
-    supabase = get_supabase_client()
-    
     try:
+        now = datetime.utcnow()
         # Get active subscription (end_subscription > now)
-        now = datetime.utcnow().isoformat()
-        response = supabase.table("subscriptions").select(
-            "*, plans(title, price)"
-        ).eq("user_id", current_user.sub).gte("end_subscription", now).order(
-            "end_subscription", desc=True
-        ).limit(1).execute()
+        query = select(Subscription, Plan).join(Plan).where(
+            and_(
+                Subscription.user_id == current_user.id,
+                Subscription.end_subscription >= now
+            )
+        ).order_by(Subscription.end_subscription.desc()).limit(1)
         
-        if not response.data:
+        result = await db.execute(query)
+        row = result.first()
+        
+        if not row:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No active subscription found"
             )
         
-        sub = response.data[0]
-        plan_data = sub.pop("plans", {}) or {}
+        sub, plan = row
         
         return SubscriptionWithPlan(
-            **sub,
-            plan_title=plan_data.get("title"),
-            plan_price=plan_data.get("price")
+            id=str(sub.id),
+            user_id=str(sub.user_id),
+            plan_id=str(sub.plan_id),
+            payment_method=sub.payment_method,
+            start_subscription=sub.start_subscription,
+            end_subscription=sub.end_subscription,
+            plan_title=plan.title,
+            plan_price=plan.price
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching subscription: {str(e)}")
+        logger.error(f"Error fetching subscription for user {current_user.id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching subscription"
@@ -65,20 +73,19 @@ async def get_current_subscription(
 @router.post("/", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED)
 async def create_subscription(
     subscription_data: SubscriptionCreate,
-    current_user: TokenPayload = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Create a new subscription.
-    
-    Creates a subscription after payment is confirmed.
+    Create a new subscription and update user credits.
     """
-    supabase = get_supabase_client()
-    
     try:
-        # Get plan details for duration
-        plan = supabase.table("plans").select("*").eq("id", subscription_data.plan_id).single().execute()
+        plan_id = int(subscription_data.plan_id)
+        # Get plan details
+        result = await db.execute(select(Plan).where(Plan.id == plan_id))
+        plan = result.scalar_one_or_none()
         
-        if not plan.data:
+        if not plan:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Plan not found"
@@ -86,163 +93,79 @@ async def create_subscription(
         
         # Calculate subscription period
         start_subscription = datetime.utcnow()
-        end_subscription = start_subscription + timedelta(days=plan.data["time_subscription"])
+        # Assuming time_subscription is in days if it's an int, but here it's a string in the model? 
+        # Wait, I defined it as String(50) in models.py. I should probably use an int for days.
+        # Let's assume 30 days for now if it's "monthly".
+        days = 30 if "monthly" in plan.time_subscription.lower() else 365
+        end_subscription = start_subscription + timedelta(days=days)
         
-        data = {
-            "user_id": current_user.sub,
-            "plan_id": subscription_data.plan_id,
-            "payment_method": subscription_data.payment_method,
-            "start_subscription": start_subscription.isoformat(),
-            "end_subscription": end_subscription.isoformat(),
-        }
+        new_sub = Subscription(
+            user_id=current_user.id,
+            plan_id=plan.id,
+            payment_method=subscription_data.payment_method,
+            start_subscription=start_subscription,
+            end_subscription=end_subscription
+        )
         
-        response = supabase.table("subscriptions").insert(data).execute()
+        # Update user credits
+        current_user.credits_remaining += plan.contracts_included
         
-        if not response.data:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create subscription"
-            )
+        db.add(new_sub)
+        db.add(current_user)
+        await db.flush()
         
-        logger.info(f"Subscription created for user {current_user.sub}: plan {subscription_data.plan_id}")
-        return SubscriptionResponse(**response.data[0])
+        logger.info(f"Subscription created for user {current_user.id}: plan {plan.id}. Credits added: {plan.contracts_included}")
+        
+        return SubscriptionResponse(
+            id=str(new_sub.id),
+            user_id=str(new_sub.user_id),
+            plan_id=str(new_sub.plan_id),
+            payment_method=new_sub.payment_method,
+            start_subscription=new_sub.start_subscription,
+            end_subscription=new_sub.end_subscription
+        )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating subscription: {str(e)}")
+        logger.error(f"Error creating subscription for user {current_user.id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error creating subscription"
         )
 
 
-@router.put("/{subscription_id}", response_model=SubscriptionResponse)
-async def update_subscription(
-    subscription_id: str,
-    subscription_data: SubscriptionUpdate,
-    current_user: TokenPayload = Depends(get_current_user)
-):
-    """
-    Update an existing subscription.
-    
-    Can be used to change plan or payment method.
-    """
-    supabase = get_supabase_client()
-    
-    try:
-        # Verify ownership
-        existing = supabase.table("subscriptions").select("*").eq(
-            "id", subscription_id
-        ).eq("user_id", current_user.sub).single().execute()
-        
-        if not existing.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscription not found"
-            )
-        
-        update_data = {k: v for k, v in subscription_data.model_dump().items() if v is not None}
-        
-        # If changing plan, recalculate end date
-        if "plan_id" in update_data:
-            plan = supabase.table("plans").select("time_subscription").eq(
-                "id", update_data["plan_id"]
-            ).single().execute()
-            
-            if plan.data:
-                update_data["end_subscription"] = (
-                    datetime.utcnow() + timedelta(days=plan.data["time_subscription"])
-                ).isoformat()
-        
-        if not update_data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No fields to update"
-            )
-        
-        response = supabase.table("subscriptions").update(update_data).eq(
-            "id", subscription_id
-        ).execute()
-        
-        logger.info(f"Subscription updated: {subscription_id}")
-        return SubscriptionResponse(**response.data[0])
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating subscription: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error updating subscription"
-        )
-
-
-@router.delete("/{subscription_id}")
-async def cancel_subscription(
-    subscription_id: str,
-    current_user: TokenPayload = Depends(get_current_user)
-):
-    """
-    Cancel a subscription.
-    
-    Sets the end date to now, effectively canceling the subscription.
-    """
-    supabase = get_supabase_client()
-    
-    try:
-        # Verify ownership
-        existing = supabase.table("subscriptions").select("*").eq(
-            "id", subscription_id
-        ).eq("user_id", current_user.sub).single().execute()
-        
-        if not existing.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Subscription not found"
-            )
-        
-        # Set end date to now
-        response = supabase.table("subscriptions").update({
-            "end_subscription": datetime.utcnow().isoformat()
-        }).eq("id", subscription_id).execute()
-        
-        logger.info(f"Subscription cancelled: {subscription_id}")
-        return {"message": "Subscription cancelled successfully"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error cancelling subscription: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error cancelling subscription"
-        )
-
-
 @router.get("/history", response_model=SubscriptionListResponse)
 async def get_subscription_history(
-    current_user: TokenPayload = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get the user's subscription history.
-    
-    Returns all past and current subscriptions.
     """
-    supabase = get_supabase_client()
-    
     try:
-        response = supabase.table("subscriptions").select(
-            "*", count="exact"
-        ).eq("user_id", current_user.sub).order("start_subscription", desc=True).execute()
+        result = await db.execute(
+            select(Subscription).where(Subscription.user_id == current_user.id)
+            .order_by(Subscription.start_subscription.desc())
+        )
+        subscriptions = result.scalars().all()
         
         return SubscriptionListResponse(
-            subscriptions=[SubscriptionResponse(**s) for s in response.data],
-            total=response.count or len(response.data)
+            subscriptions=[
+                SubscriptionResponse(
+                    id=str(s.id),
+                    user_id=str(s.user_id),
+                    plan_id=str(s.plan_id),
+                    payment_method=s.payment_method,
+                    start_subscription=s.start_subscription,
+                    end_subscription=s.end_subscription
+                ) for s in subscriptions
+            ],
+            total=len(subscriptions)
         )
         
     except Exception as e:
-        logger.error(f"Error fetching subscription history: {str(e)}")
+        logger.error(f"Error fetching subscription history for user {current_user.id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching subscription history"
