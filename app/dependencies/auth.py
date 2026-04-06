@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.models import User
 from typing import Any, Optional
 from pydantic import BaseModel
-import jwt
+from jose import jwt, JWTError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -54,14 +54,8 @@ async def get_current_user(
             
         return user
             
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except (jwt.InvalidTokenError, ValueError) as e:
-        logger.warning(f"Invalid JWT token: {e}")
+    except JWTError as e:
+        logger.warning(f"JWT validation error: {e}")
         raise credentials_exception
     except Exception as e:
         logger.exception(f"Unexpected error during authentication: {e}")

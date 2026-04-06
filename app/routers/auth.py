@@ -75,10 +75,10 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Registration error: {str(e)}")
+        logger.exception(f"Registration error for {user_data.email}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during registration"
+            detail=f"Registration error: {str(e)}"
         )
 
 
@@ -117,10 +117,10 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Login error: {str(e)}")
+        logger.exception(f"Login error for {credentials.email}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during login"
+            detail=f"Login error: {str(e)}"
         )
 
 
