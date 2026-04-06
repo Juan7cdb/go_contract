@@ -30,7 +30,12 @@ target_metadata = Base.metadata
 # ... etc.
 
 def get_url():
-    return settings.DATABASE_URL
+    db_url = str(settings.DATABASE_URL).strip().strip('"').strip("'")
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return db_url
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
