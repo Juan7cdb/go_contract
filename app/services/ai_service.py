@@ -59,7 +59,7 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
 3. **Preguntas de seguimiento para casos:** Cuando el usuario plantee una disputa o redacción concreta, antes de sentenciar, formula 2-3 preguntas claras para recopilar hechos (jurisdicción aplicable, partes, plazos involucrados).
 4. **Citas y Fuentes (OBLIGATORIO):** Toda respuesta teórica o sustantiva debe incluir al final referencias en la medida de lo posible, con el formato: `Fuente: [Nombre de ley, código, estatuto o caso]. [Año].` No inventes citas. Si no estás seguro de la referencia técnica exacta, confía en los principios generales (e.g. Código Civil, Common Law) y aclara este hecho.
 5. **Idioma congruente:** Responde siempre en el mismo idioma en el que se te formule la pregunta. Mantén los latinismos y clasificaciones legales en su idioma de origen si son universales.
-6. **Alcance Estricto:** Si el usuario hace preguntas fuera de lo comercial, legal, contractual o regulatorio, responde exactamente: *"Este modelo de IA creado por Go Contracto Inc. solo responde a preguntas jurídicas, revisión de contratos y análisis legal."*"""
+6. **Alcance Estricto:** If the user asks questions outside of legal, commercial, contractual, or regulatory scope, respond: *"Este modelo de IA creado por Go Contracto Inc. solo responde a preguntas jurídicas, revisión de contratos y análisis legal."*"""
 
         # Tool definition for the new SDK
         self.search_tool = types.Tool(
@@ -85,17 +85,32 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
             tools=[self.search_tool]
         )
 
-    async def chat(self, message: str, history: list[ChatMessage]) -> str:
-        """Standard chat with full response."""
-        contents = []
-        # Add system instruction as the first user message part or similar mapping
-        # In the new SDK, we can use system_instruction in config, but here we'll stick to history mapping
+    def _map_history(self, history: list[ChatMessage]) -> list[types.Content]:
+        """Maps ChatMessage history to the format expected by the new SDK."""
+        mapped = []
         for msg in history:
             role = "user" if msg.role == "user" else "model"
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
+            parts = []
+            for p in msg.parts:
+                if isinstance(p, str):
+                    parts.append(types.Part.from_text(text=p))
+                elif isinstance(p, dict):
+                    # Handle multimodal or function calling parts in history if needed
+                    if "text" in p:
+                        parts.append(types.Part.from_text(text=p["text"]))
+                    elif "inline_data" in p:
+                        # Assuming structure compatible with types.Part.from_bytes
+                        pass
+            if parts:
+                mapped.append(types.Content(role=role, parts=parts))
+        return mapped
+
+    async def chat(self, message: str, history: list[ChatMessage]) -> str:
+        """Standard chat with full response."""
+        contents = self._map_history(history)
         
-        # Add current message
-        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=self.legal_chat_instruction + "\n\nUser question: " + message)]))
+        # Add current message with instruction
+        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=f"{self.legal_chat_instruction}\n\nUser question: {message}")]))
         
         response = await self.client.aio.models.generate_content(
             model="gemini-1.5-flash",
@@ -106,12 +121,9 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
 
     async def chat_lexia(self, message: str, history: list[ChatMessage], db: "AsyncSession", user_id: int) -> str:
         """Chat specifically with the LexIA agent, supporting tool calls."""
-        contents = []
-        for msg in history:
-            role = "user" if msg.role == "user" else "model"
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
+        contents = self._map_history(history)
             
-        chat = self.client.aio.chats.create(
+        chat = await self.client.aio.chats.create(
             model="gemini-1.5-pro",
             history=contents,
             config=self.lexia_config
@@ -146,12 +158,10 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
     async def chat_lexia_stream(
         self, message: str, history: List[ChatMessage], db: "AsyncSession", user_id: int, attachments: List[Attachment] = []
     ) -> AsyncGenerator[str, None]:
-        contents = []
-        for msg in history:
-            role = "user" if msg.role == "user" else "model"
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
+        """Streaming chat for LexIA with corrected SDK usage."""
+        contents = self._map_history(history)
             
-        chat = self.client.aio.chats.create(
+        chat = await self.client.aio.chats.create(
             model="gemini-1.5-pro",
             history=contents,
             config=self.lexia_config
@@ -173,8 +183,8 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
         fc_name = None
         fc_args = None
         
-        async for chunk in response_stream:
-            # In the new SDK, we check parts for function_call
+        # Note: In google-genai aio, the stream iteration is currently synchronous
+        for chunk in response_stream:
             if chunk.candidates[0].content.parts:
                 for part in chunk.candidates[0].content.parts:
                     if part.function_call:
@@ -197,7 +207,7 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
                     parts=[types.Part.from_function_response(name=fc_name, response=tool_data)]
                 )
             )
-            async for follow_chunk in followup_stream:
+            for follow_chunk in followup_stream:
                 if follow_chunk.text:
                     yield follow_chunk.text
 
@@ -218,9 +228,7 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
             contents.append(types.Content(role="user", parts=[types.Part.from_text(text=context_prompt + "\n\nHola, necesito ayuda con este contrato.")]))
             contents.append(types.Content(role="model", parts=[types.Part.from_text(text=f"Entendido. Te ayudaré con tu contrato de {template_name}. ¿Qué duda tienes?")]))
         else:
-            for msg in history:
-                role = "user" if msg.role == "user" else "model"
-                contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
+            contents = self._map_history(history)
         
         msg_parts = [types.Part.from_text(text=f"{context_prompt}\n\nPregunta del usuario: {message}")]
         if attachments:
@@ -231,10 +239,10 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
                 except Exception:
                     pass
         
-        chat = self.client.aio.chats.create(model="gemini-1.5-pro", history=contents)
+        chat = await self.client.aio.chats.create(model="gemini-1.5-pro", history=contents)
         response_stream = await chat.send_message_stream(msg_parts)
         
-        async for chunk in response_stream:
+        for chunk in response_stream:
             if chunk.text:
                 yield chunk.text
 
@@ -274,19 +282,15 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
 
     async def chat_stream(self, message: str, history: list[ChatMessage]) -> AsyncGenerator[str, None]:
         """Streaming chat for real-time responses."""
-        contents = []
-        for msg in history:
-            role = "user" if msg.role == "user" else "model"
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
-        
-        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=self.legal_chat_instruction + "\n\nUser question: " + message)]))
+        contents = self._map_history(history)
+        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=f"{self.legal_chat_instruction}\n\nUser question: {message}")]))
 
         response_stream = await self.client.aio.models.generate_content_stream(
             model="gemini-1.5-flash",
             contents=contents,
             config=self.config_base
         )
-        async for chunk in response_stream:
+        for chunk in response_stream:
             if chunk.text:
                 yield chunk.text
 
@@ -316,7 +320,7 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
             contents=full_prompt,
             config=self.config_base
         )
-        async for chunk in response_stream:
+        for chunk in response_stream:
             if chunk.text:
                 yield chunk.text
 
