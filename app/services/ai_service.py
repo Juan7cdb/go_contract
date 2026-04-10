@@ -185,8 +185,8 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
         fc_name = None
         fc_args = None
         
-        # Note: In current google-genai aio, the stream iteration is synchronous for now
-        for chunk in response_stream:
+        # Note: In current google-genai aio, we iterate over the .stream property synchronously
+        for chunk in response_stream.stream:
             if chunk.candidates and chunk.candidates[0].content.parts:
                 for part in chunk.candidates[0].content.parts:
                     if part.function_call:
@@ -209,7 +209,7 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
                     parts=[types.Part.from_function_response(name=fc_name, response=tool_data)]
                 )
             )
-            for follow_chunk in followup_stream:
+            for follow_chunk in followup_stream.stream:
                 if follow_chunk.text:
                     yield follow_chunk.text
 
@@ -245,7 +245,7 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
         chat = self.client.aio.chats.create(model="gemini-1.5-pro", history=contents)
         response_stream = await chat.send_message_stream(msg_parts)
         
-        for chunk in response_stream:
+        for chunk in response_stream.stream:
             if chunk.text:
                 yield chunk.text
 
@@ -293,7 +293,7 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
             contents=contents,
             config=self.config_base
         )
-        for chunk in response_stream:
+        for chunk in response_stream.stream:
             if chunk.text:
                 yield chunk.text
 
@@ -323,7 +323,7 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
             contents=full_prompt,
             config=self.config_base
         )
-        for chunk in response_stream:
+        for chunk in response_stream.stream:
             if chunk.text:
                 yield chunk.text
 
