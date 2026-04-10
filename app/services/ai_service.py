@@ -1,10 +1,12 @@
-"""AI Service for contract generation and agent-based chat."""
-import google.generativeai as genai
+"""AI Service for contract generation and agent-based chat using the new google-genai SDK."""
+from google import genai
+from google.genai import types
 from app.core.config import settings
 from app.schemas.ai import ChatMessage, Attachment
 from typing import AsyncGenerator, Optional, TYPE_CHECKING, List, Any
 import json
 import logging
+import base64
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,10 +22,10 @@ class AIService:
         if not settings.GOOGLE_API_KEY or "change_me" in settings.GOOGLE_API_KEY:
             logger.warning("GOOGLE_API_KEY is not set correctly. AI features will fail.")
         
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
+        self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
         
         # Generation config optimized for legal accuracy
-        self.generation_config = genai.GenerationConfig(
+        self.config_base = types.GenerateContentConfig(
             temperature=0.2,  # Low temperature for legal accuracy
             top_p=0.95,
             top_k=64,
@@ -59,67 +61,86 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
 5. **Idioma congruente:** Responde siempre en el mismo idioma en el que se te formule la pregunta. Mantén los latinismos y clasificaciones legales en su idioma de origen si son universales.
 6. **Alcance Estricto:** Si el usuario hace preguntas fuera de lo comercial, legal, contractual o regulatorio, responde exactamente: *"Este modelo de IA creado por Go Contracto Inc. solo responde a preguntas jurídicas, revisión de contratos y análisis legal."*"""
 
-        def search_user_contracts(status: str = None, date_range: str = None, contract_id: str = None):
-            """
-            Search and retrieve the user's contracts from the database. Use this tool autonomously when the user asks about their contracts, summaries, or recent activity.
-            Args:
-                status: Filter by contract status (e.g., 'completed', 'in_progress', 'draft').
-                date_range: Optional date range or relative time (e.g., 'last 30 days').
-                contract_id: Optional specific contract ID.
-            """
-            pass
-
-        self.model_chat = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            generation_config=self.generation_config,
+        # Tool definition for the new SDK
+        self.search_tool = types.Tool(
+            function_declarations=[
+                types.FunctionDeclaration(
+                    name="search_user_contracts",
+                    description="Search and retrieve the user's contracts from the database. Use this tool autonomously when the user asks about their contracts, summaries, or recent activity.",
+                    parameters=types.Schema(
+                        type="OBJECT",
+                        properties={
+                            "status": types.Schema(type="STRING", description="Filter by contract status (e.g., 'completed', 'in_progress', 'draft')"),
+                            "date_range": types.Schema(type="STRING", description="Optional date range or relative time (e.g., 'last 30 days')"),
+                            "contract_id": types.Schema(type="STRING", description="Optional specific contract ID")
+                        }
+                    )
+                )
+            ]
         )
 
-        self.model_lexia = genai.GenerativeModel(
-            model_name="gemini-1.5-pro",
-            generation_config=self.generation_config,
+        self.lexia_config = types.GenerateContentConfig(
+            temperature=0.2,
             system_instruction=self.lexia_prompt,
-            tools=[search_user_contracts]
-        )
-
-        self.model_contract = genai.GenerativeModel(
-            model_name="gemini-1.5-pro",
-            generation_config=self.generation_config,
+            tools=[self.search_tool]
         )
 
     async def chat(self, message: str, history: list[ChatMessage]) -> str:
-        """Standard chat with full response. (Deprecated in favor of chat_lexia)"""
-        contents = [{"role": "user", "parts": [self.legal_chat_instruction + "\n\nUser question: " + message]}]
-        if history:
-            for msg in history:
-                contents.append({"role": msg.role, "parts": msg.parts})
-            contents.append({"role": "user", "parts": [message]})
-        response = await self.model_chat.generate_content_async(contents)
+        """Standard chat with full response."""
+        contents = []
+        # Add system instruction as the first user message part or similar mapping
+        # In the new SDK, we can use system_instruction in config, but here we'll stick to history mapping
+        for msg in history:
+            role = "user" if msg.role == "user" else "model"
+            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
+        
+        # Add current message
+        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=self.legal_chat_instruction + "\n\nUser question: " + message)]))
+        
+        response = await self.client.aio.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=contents,
+            config=self.config_base
+        )
         return response.text
 
     async def chat_lexia(self, message: str, history: list[ChatMessage], db: "AsyncSession", user_id: int) -> str:
         """Chat specifically with the LexIA agent, supporting tool calls."""
         contents = []
         for msg in history:
-            # map history role to 'user' or 'model'
-            role = "user" if msg.role in ["user", "user"] else "model"
-            contents.append({"role": role, "parts": msg.parts})
+            role = "user" if msg.role == "user" else "model"
+            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
             
-        chat = self.model_lexia.start_chat(history=contents)
+        chat = self.client.aio.chats.create(
+            model="gemini-1.5-pro",
+            history=contents,
+            config=self.lexia_config
+        )
         
-        # We don't stream here, just get full response
-        response = await chat.send_message_async(message)
+        response = await chat.send_message(message)
         
-        # Check if the model decided to call the tool
-        if response.function_call:
-            fc = response.function_call
-            if fc.name == "search_user_contracts":
-                tool_data = await self._execute_search_contracts(fc.args, db, user_id)
-                
-                # Feed Tool result back to the model
-                response = await chat.send_message_async(
-                    {"role": "function", "parts": [{"function_response": {"name": fc.name, "response": tool_data}}]}
-                )
-                
+        # Handle function calls
+        if response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if part.function_call:
+                    fc = part.function_call
+                    if fc.name == "search_user_contracts":
+                        tool_data = await self._execute_search_contracts(fc.args, db, user_id)
+                        
+                        # Feed Tool result back
+                        response = await chat.send_message(
+                            types.Content(
+                                role="user",
+                                parts=[
+                                    types.Part.from_function_response(
+                                        name=fc.name,
+                                        response=tool_data
+                                    )
+                                ]
+                            )
+                        )
+                        break
+                        
         return response.text
 
     async def chat_lexia_stream(
@@ -128,49 +149,55 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
         contents = []
         for msg in history:
             role = "user" if msg.role == "user" else "model"
-            contents.append({"role": role, "parts": msg.parts})
+            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
             
-        chat = self.model_lexia.start_chat(history=contents)
+        chat = self.client.aio.chats.create(
+            model="gemini-1.5-pro",
+            history=contents,
+            config=self.lexia_config
+        )
         
-        # Prepare current message parts (Multimodal)
-        msg_parts = [message]
+        # Prepare message parts
+        msg_parts = [types.Part.from_text(text=message)]
         if attachments:
             for att in attachments:
-                # Use the dict format that Gemini SDK expects for inline data
-                msg_parts.append({
-                    "mime_type": att.mime_type,
-                    "data": att.base64_data
-                })
-        
-        response = await chat.send_message_async(msg_parts, stream=True)
+                try:
+                    raw_data = base64.b64decode(att.base64_data)
+                    msg_parts.append(types.Part.from_bytes(data=raw_data, mime_type=att.mime_type))
+                except Exception as e:
+                    logger.error(f"Error decoding attachment: {e}")
+
+        response_stream = await chat.send_message_stream(msg_parts)
         
         has_func_call = False
         fc_name = None
         fc_args = None
         
-        async for chunk in response:
-            if chunk.function_call:
-                has_func_call = True
-                fc = chunk.function_call
-                fc_name = fc.name
-                fc_args = getattr(fc, 'args', {})
-                # For streaming, the function call part arrives, we must stop yielding text and execute it
+        async for chunk in response_stream:
+            # In the new SDK, we check parts for function_call
+            if chunk.candidates[0].content.parts:
+                for part in chunk.candidates[0].content.parts:
+                    if part.function_call:
+                        has_func_call = True
+                        fc_name = part.function_call.name
+                        fc_args = part.function_call.args
+                        break
+                    if part.text:
+                        yield part.text
+            if has_func_call:
                 break
-            if chunk.text:
-                yield chunk.text
                 
         if has_func_call and fc_name == "search_user_contracts":
-            # 1. Provide visual feedback (Optional but good UX)
             yield "\n*Consultando tus contratos en la base de datos...*\n"
-            
             tool_data = await self._execute_search_contracts(fc_args, db, user_id)
             
-            # Send result and stream the followup
-            followup = await chat.send_message_async(
-                {"role": "function", "parts": [{"function_response": {"name": fc_name, "response": tool_data}}]},
-                stream=True
+            followup_stream = await chat.send_message_stream(
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_function_response(name=fc_name, response=tool_data)]
+                )
             )
-            async for follow_chunk in followup:
+            async for follow_chunk in followup_stream:
                 if follow_chunk.text:
                     yield follow_chunk.text
 
@@ -188,26 +215,26 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
 """
         contents = []
         if not history:
-            contents.append({"role": "user", "parts": [context_prompt + "\n\nHola, necesito ayuda con este contrato."]})
-            contents.append({"role": "model", "parts": [f"Entendido. Te ayudaré con tu contrato de {template_name}. ¿Qué duda tienes?"]})
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=context_prompt + "\n\nHola, necesito ayuda con este contrato.")]))
+            contents.append(types.Content(role="model", parts=[types.Part.from_text(text=f"Entendido. Te ayudaré con tu contrato de {template_name}. ¿Qué duda tienes?")]))
         else:
             for msg in history:
                 role = "user" if msg.role == "user" else "model"
-                contents.append({"role": role, "parts": msg.parts})
+                contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
         
-        # Prepare multimodal query
-        query_parts = [f"{context_prompt}\n\nPregunta del usuario: {message}"]
+        msg_parts = [types.Part.from_text(text=f"{context_prompt}\n\nPregunta del usuario: {message}")]
         if attachments:
             for att in attachments:
-                query_parts.append({
-                    "mime_type": att.mime_type,
-                    "data": att.base64_data
-                })
+                try:
+                    raw_data = base64.b64decode(att.base64_data)
+                    msg_parts.append(types.Part.from_bytes(data=raw_data, mime_type=att.mime_type))
+                except Exception:
+                    pass
         
-        chat = self.model_lexia.start_chat(history=contents)
-        response = await chat.send_message_async(query_parts, stream=True)
+        chat = self.client.aio.chats.create(model="gemini-1.5-pro", history=contents)
+        response_stream = await chat.send_message_stream(msg_parts)
         
-        async for chunk in response:
+        async for chunk in response_stream:
             if chunk.text:
                 yield chunk.text
 
@@ -218,23 +245,16 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
         
         try:
             stmt = select(Contract).where(Contract.user_id == user_id)
-            
-            # Additional filters (AI might pass them differently, check dict safely)
             if args:
                 if args.get("status"):
                     stmt = stmt.where(Contract.status == args["status"])
-                # Limit might be implemented, but force max 10 to protect memory
                 
             res = await db.execute(stmt)
             contracts = res.scalars().all()
             
             context_data = []
             for c in contracts[:10]:
-                content_preview = ""
-                if c.generated_content:
-                    # provide up to 2500 chars to avoid prompt overflow but give meaningful context
-                    content_preview = c.generated_content[:2500] + "..."
-                
+                content_preview = (c.generated_content[:2500] + "...") if c.generated_content else ""
                 context_data.append({
                     "id": c.id,
                     "title": c.title,
@@ -251,86 +271,57 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
         except Exception as e:
             logger.error(f"Error checking DB in LexIA Tool: {e}")
             return {"error": "Hubo un error consultando la DB. Pide disculpas al usuario."}
-    async def chat_stream(self, message: str, history: list[ChatMessage]) -> AsyncGenerator[str, None]:
-        """Streaming chat for real-time responses. (Deprecated in favor of chat_lexia_stream)"""
-        contents = [{"role": "user", "parts": [self.legal_chat_instruction + "\n\nUser question: " + message]}]
-        if history:
-            for msg in history:
-                contents.append({"role": msg.role, "parts": msg.parts})
-            contents.append({"role": "user", "parts": [message]})
 
-        response = await self.model_chat.generate_content_async(contents, stream=True)
-        async for chunk in response:
+    async def chat_stream(self, message: str, history: list[ChatMessage]) -> AsyncGenerator[str, None]:
+        """Streaming chat for real-time responses."""
+        contents = []
+        for msg in history:
+            role = "user" if msg.role == "user" else "model"
+            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in msg.parts if isinstance(p, str)]))
+        
+        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=self.legal_chat_instruction + "\n\nUser question: " + message)]))
+
+        response_stream = await self.client.aio.models.generate_content_stream(
+            model="gemini-1.5-flash",
+            contents=contents,
+            config=self.config_base
+        )
+        async for chunk in response_stream:
             if chunk.text:
                 yield chunk.text
 
-    async def chat_with_agent(
-        self, 
-        message: str, 
-        agent_prompt: str, 
-        history: Optional[list[dict]] = None
-    ) -> str:
+    async def chat_with_agent(self, message: str, agent_prompt: str, history: Optional[list[dict]] = None) -> str:
         """Chat with a specific AI agent using its custom prompt."""
-        # Combine agent prompt with user message
-        full_prompt = f"""{agent_prompt}
-
----
-User message: {message}
-"""
-        
+        full_prompt = f"{agent_prompt}\n\n---\nUser message: {message}"
         if history:
             history_text = "\n".join([f"{h.get('role', 'user')}: {h.get('content', '')}" for h in history[-5:]])
-            full_prompt = f"""{agent_prompt}
-
----
-Recent conversation:
-{history_text}
-
-User message: {message}
-"""
+            full_prompt = f"{agent_prompt}\n\n---\nRecent conversation:\n{history_text}\n\nUser message: {message}"
         
-        response = await self.model_chat.generate_content_async(full_prompt)
+        response = await self.client.aio.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=full_prompt,
+            config=self.config_base
+        )
         return response.text
 
-    async def chat_with_agent_stream(
-        self, 
-        message: str, 
-        agent_prompt: str, 
-        history: Optional[list[dict]] = None
-    ) -> AsyncGenerator[str, None]:
+    async def chat_with_agent_stream(self, message: str, agent_prompt: str, history: Optional[list[dict]] = None) -> AsyncGenerator[str, None]:
         """Streaming chat with a specific AI agent."""
-        full_prompt = f"""{agent_prompt}
-
----
-User message: {message}
-"""
-        
+        full_prompt = f"{agent_prompt}\n\n---\nUser message: {message}"
         if history:
             history_text = "\n".join([f"{h.get('role', 'user')}: {h.get('content', '')}" for h in history[-5:]])
-            full_prompt = f"""{agent_prompt}
-
----
-Recent conversation:
-{history_text}
-
-User message: {message}
-"""
+            full_prompt = f"{agent_prompt}\n\n---\nRecent conversation:\n{history_text}\n\nUser message: {message}"
         
-        response = await self.model_chat.generate_content_async(full_prompt, stream=True)
-        
-        async for chunk in response:
+        response_stream = await self.client.aio.models.generate_content_stream(
+            model="gemini-1.5-flash",
+            contents=full_prompt,
+            config=self.config_base
+        )
+        async for chunk in response_stream:
             if chunk.text:
                 yield chunk.text
 
-    async def generate_contract(
-        self, 
-        contract_type: str, 
-        inputs: dict, 
-        rules: Optional[str] = None,
-        agent_prompt: Optional[str] = None
-    ) -> str:
-        """Generate a complete contract document using template rules and optional agent prompt."""
-        
+    async def generate_contract(self, contract_type: str, inputs: dict, rules: Optional[str] = None, agent_prompt: Optional[str] = None) -> str:
+        """Generate a complete contract document."""
         system_context = self.contract_instruction
         if agent_prompt:
             system_context = f"{self.contract_instruction}\n\nADDITIONAL AGENT INSTRUCTIONS:\n{agent_prompt}"
@@ -349,8 +340,11 @@ Generate a **{contract_type}**.
 
 Ensure the contract is complete and legally sound. Include all standard protective clauses.
 """
-        
-        response = await self.model_contract.generate_content_async(prompt)
+        response = await self.client.aio.models.generate_content(
+            model="gemini-1.5-pro",
+            contents=prompt,
+            config=self.config_base
+        )
         return response.text
 
     def _format_inputs(self, inputs: dict, indent: int = 0) -> str:
@@ -367,15 +361,8 @@ Ensure the contract is complete and legally sound. Include all standard protecti
 
 
 def get_ai_service() -> AIService:
-    """
-    Lazy initialization of AI service.
-    Prevents initialization errors at import time if API key is missing.
-    """
+    """Lazy initialization of AI service."""
     global _ai_service_instance
     if _ai_service_instance is None:
         _ai_service_instance = AIService()
     return _ai_service_instance
-
-# Use get_ai_service() for lazy initialization.
-# Do NOT create a module-level instance — it will crash the app
-# if GOOGLE_API_KEY is missing or invalid at import time.

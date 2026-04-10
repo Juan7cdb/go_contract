@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     # Security
     FRONTEND_URL: str = "http://localhost:5173"
     ALLOWED_ORIGINS: str = "http://localhost:5173,https://go-contract-frontend.vercel.app"
+    ALLOWED_ORIGIN_REGEX: Optional[str] = r"https://.*\.vercel\.app"
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
