@@ -175,6 +175,8 @@ async def list_contracts(
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
     template_id: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
 ):
     """
     List all contracts for the current user.
@@ -184,6 +186,13 @@ async def list_contracts(
         
         if template_id:
             query = query.where(Contract.template_id == int(template_id))
+        
+        if status and status != "All Statuses":
+            query = query.where(Contract.status == status.lower())
+            
+        if search:
+            search_filter = f"%{search}%"
+            query = query.where(func.lower(Contract.title).ilike(search_filter.lower()))
         
         # Count total
         count_query = select(func.count()).select_from(query.subquery())
