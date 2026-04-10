@@ -9,7 +9,7 @@ from sqlalchemy import select, func
 from app.dependencies.auth import get_current_user
 from app.models import User, Contract, TemplateContract, Agent
 from app.core.database import get_db
-from app.services.ai_service import ai_service
+from app.services.ai_service import get_ai_service
 from app.schemas.contract import (
     ContractCreate,
     ContractUpdate,
@@ -75,7 +75,7 @@ async def generate_contract(
         sanitized_inputs = sanitize_inputs(request.inputs)
         
         # Generate contract with AI
-        content = await ai_service.generate_contract(
+        content = await get_ai_service().generate_contract(
             contract_type=template.title,
             inputs=sanitized_inputs,
             rules=template.rules,
@@ -251,6 +251,8 @@ async def get_contract(
             title=contract.title,
             description=contract.description,
             contract_url=contract.contract_url,
+            generated_content=contract.generated_content,
+            form_data=contract.form_data,
             created_at=contract.created_at
         )
         

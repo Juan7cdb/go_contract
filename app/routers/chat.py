@@ -9,6 +9,7 @@ from app.services.ai_service import get_ai_service
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from app.core.config import settings
+from app.schemas.smart_panel import SmartPanelChatRequest
 import logging
 
 logger = logging.getLogger(__name__)
@@ -85,3 +86,46 @@ async def chat_stream_endpoint(
     except Exception as e:
         logger.exception(f"Error in streaming chat for user {current_user.id}")
         raise HTTPException(status_code=500, detail="Failed to process chat request")
+
+@router.post("/smart-panel/stream")
+@limiter.limit(f"{settings.RATE_LIMIT_PER_MINUTE}/minute")
+async def smart_panel_chat_stream_endpoint(
+    request: Request,
+    chat_request: SmartPanelChatRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Streaming endpoint for Smart Panel contextual chat.
+    Assists the user while drafting a specific contract.
+    """
+    try:
+        ai_service = get_ai_service()
+        
+        async def generate():
+            try:
+                async for chunk in ai_service.chat_smart_panel_stream(
+                    chat_request.message, 
+                    chat_request.history,
+                    chat_request.template_name,
+                    chat_request.form_data
+                ):
+                    text = str(chunk).replace("\n", "\\n")
+                    yield f"data: {text}\n\n"
+                yield "data: [DONE]\n\n"
+            except Exception as inner_e:
+                logger.error(f"Error yielding smart panel chunks: {inner_e}")
+                yield f"data: [Error en el asistente lateral]\\n\\n"
+                yield "data: [DONE]\n\n"
+        
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            }
+        )
+    except Exception as e:
+        logger.exception(f"Error in smart panel streaming chat for user {current_user.id}")
+        raise HTTPException(status_code=500, detail="Failed to process smart panel chat request")

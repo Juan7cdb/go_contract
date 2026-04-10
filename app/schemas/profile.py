@@ -25,8 +25,8 @@ class ProfileUpdate(BaseModel):
 class ProfileResponse(BaseModel):
     """Schema for profile response."""
     id: str
-    first_name: str
-    last_name: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     email: str
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

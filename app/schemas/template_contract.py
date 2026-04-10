@@ -7,9 +7,11 @@ from datetime import datetime
 class TemplateContractBase(BaseModel):
     """Base template contract schema."""
     title: str = Field(..., max_length=200)
-    description: str
-    rules: str  # AI generation rules/instructions
-    contract_template_url: str  # URL to template file
+    description: Optional[str] = None
+    rules: Optional[str] = None
+    category: Optional[str] = None
+    subcategory: Optional[str] = None
+    contract_template_url: Optional[str] = None
 
 
 class TemplateContractCreate(TemplateContractBase):
@@ -33,6 +35,8 @@ class TemplateContractResponse(TemplateContractBase):
 
     class Config:
         from_attributes = True
+        # Allow extra fields from ORM without error
+        extra = "ignore"
 
 
 class TemplateContractListResponse(BaseModel):

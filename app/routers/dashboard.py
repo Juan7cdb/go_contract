@@ -70,7 +70,8 @@ async def get_dashboard_stats(
         )
         
     except Exception as e:
+        logger.error(f"Error fetching dashboard stats: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching dashboard stats: {str(e)}"
+            detail="Error fetching dashboard stats"
         )

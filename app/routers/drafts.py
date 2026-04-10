@@ -40,11 +40,10 @@ async def create_draft(
         )
         
         db.add(new_draft)
-        await db.commit()
-        await db.refresh(new_draft)
+        await db.flush()
         
         logger.info(f"Draft created for user {current_user.id}, template {draft_data.template_id}")
-        return new_draft
+        return ContractDraftResponse.model_validate(new_draft)
         
     except HTTPException:
         raise
@@ -128,15 +127,12 @@ async def update_draft(
         if draft_data.current_step is not None:
             draft.current_step = draft_data.current_step
         if draft_data.form_data is not None:
-            # Update form_data dictionary (merging or replacing?)
-            # Usually replacing is safer for full-step updates
             draft.form_data = draft_data.form_data
             
-        await db.commit()
-        await db.refresh(draft)
+        await db.flush()
         
         logger.info(f"Draft {draft_id} updated for user {current_user.id}")
-        return draft
+        return ContractDraftResponse.model_validate(draft)
     except HTTPException:
         raise
     except Exception as e:
@@ -166,7 +162,6 @@ async def delete_draft(
             )
         
         await db.delete(draft)
-        await db.commit()
         
         logger.info(f"Draft {draft_id} deleted for user {current_user.id}")
         return None

@@ -55,6 +55,7 @@ class TemplateContract(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     category: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    subcategory: Mapped[Optional[str]] = mapped_column(String(100))
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     rules: Mapped[Optional[str]] = mapped_column(Text)
@@ -93,6 +94,7 @@ class Agent(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     template_id: Mapped[int] = mapped_column(ForeignKey("template_contracts.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -38,6 +38,7 @@ class PasswordResetRequest(BaseModel):
 
 class PasswordUpdate(BaseModel):
     """Schema for password update."""
+    current_password: str = Field(..., description="Current password for verification")
     new_password: str = Field(..., min_length=8)
 
 

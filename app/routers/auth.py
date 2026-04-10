@@ -78,7 +78,7 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
         logger.exception(f"Registration error for {user_data.email}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Registration error: {str(e)}"
+            detail="An unexpected error occurred during registration. Please try again."
         )
 
 
@@ -120,7 +120,7 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
         logger.exception(f"Login error for {credentials.email}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Login error: {str(e)}"
+            detail="An unexpected error occurred during login. Please try again."
         )
 
 
@@ -161,14 +161,21 @@ async def update_password(
     Update password for authenticated user.
     """
     try:
+        # Verify current password before allowing update
+        if not verify_password(request.current_password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is incorrect"
+            )
+        
         current_user.hashed_password = get_password_hash(request.new_password)
         db.add(current_user)
-        # Session commit is handled by get_db if we want, or we can await it here.
-        # Our get_db commits on success.
         
         logger.info(f"Password updated for user: {current_user.id}")
         return AuthResponse(message="Password updated successfully")
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Password update error: {str(e)}")
         raise HTTPException(

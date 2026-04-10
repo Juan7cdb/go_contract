@@ -43,7 +43,7 @@ async def log_origin_middleware(request: Request, call_next):
 # CORS - Secure configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Temporarily allow all to debug preflight 400
+    allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

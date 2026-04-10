@@ -9,7 +9,7 @@ class PlanBase(BaseModel):
     title: str = Field(..., max_length=100)
     description: str
     price: float = Field(..., ge=0)
-    time_subscription: int = Field(..., ge=1, description="Subscription duration in days")
+    time_subscription: str = Field(..., max_length=50, description="Subscription period, e.g. 'monthly', 'yearly'")
 
 
 class PlanCreate(PlanBase):
@@ -22,7 +22,7 @@ class PlanUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
     price: Optional[float] = Field(None, ge=0)
-    time_subscription: Optional[int] = Field(None, ge=1)
+    time_subscription: Optional[str] = Field(None, max_length=50)
 
 
 class PlanResponse(PlanBase):
