@@ -123,7 +123,8 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
         """Chat specifically with the LexIA agent, supporting tool calls."""
         contents = self._map_history(history)
             
-        chat = await self.client.aio.chats.create(
+        # FIX: client.aio.chats.create is NOT a coroutine, do not await it.
+        chat = self.client.aio.chats.create(
             model="gemini-1.5-pro",
             history=contents,
             config=self.lexia_config
@@ -161,7 +162,8 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
         """Streaming chat for LexIA with corrected SDK usage."""
         contents = self._map_history(history)
             
-        chat = await self.client.aio.chats.create(
+        # FIX: client.aio.chats.create is NOT a coroutine, do not await it.
+        chat = self.client.aio.chats.create(
             model="gemini-1.5-pro",
             history=contents,
             config=self.lexia_config
@@ -183,9 +185,9 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
         fc_name = None
         fc_args = None
         
-        # Note: In google-genai aio, the stream iteration is currently synchronous
+        # Note: In current google-genai aio, the stream iteration is synchronous for now
         for chunk in response_stream:
-            if chunk.candidates[0].content.parts:
+            if chunk.candidates and chunk.candidates[0].content.parts:
                 for part in chunk.candidates[0].content.parts:
                     if part.function_call:
                         has_func_call = True
@@ -239,7 +241,8 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
                 except Exception:
                     pass
         
-        chat = await self.client.aio.chats.create(model="gemini-1.5-pro", history=contents)
+        # FIX: client.aio.chats.create is NOT a coroutine
+        chat = self.client.aio.chats.create(model="gemini-1.5-pro", history=contents)
         response_stream = await chat.send_message_stream(msg_parts)
         
         for chunk in response_stream:
