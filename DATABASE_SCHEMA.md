@@ -2,59 +2,80 @@
 # Go Contract AI - Database Schema Reference
 # =============================================
 # 
-# This file documents the actual Supabase database structure
-# Last updated: 2026-02-06
+# This file documents the actual PostgreSQL database structure (SQLAlchemy models)
+# Last updated: 2026-04-13
 #
 # TABLES:
 # -------
 #
-# ## profiles (users table)
-#   - id: uuid (PK, references auth.users)
-#   - first_name: text
-#   - last_name: text
-#   - email: text
-#   - created_at: timestamp with time zone
-#   - updated_at: timestamp with time zone
+# ## users
+#   - id: integer (PK)
+#   - email: varchar(255) (Unique)
+#   - hashed_password: varchar(255)
+#   - first_name: varchar(100)
+#   - last_name: varchar(100)
+#   - credits_remaining: integer (Default: 5)
+#   - preferences: json
+#   - created_at: timestamp
+#   - updated_at: timestamp
 #
-# ## plans (subscription plans info)
-#   - id: uuid (PK)
-#   - title: text
-#   - description: text
-#   - price: numeric
-#   - time_subscription: integer (days)
-#   - created_at: timestamp with time zone
-#   - updated_at: timestamp with time zone
+# ## plans
+#   - id: integer (PK)
+#   - title: varchar(100)
+#   - description: varchar(255)
+#   - price: float
+#   - contracts_included: integer
+#   - time_subscription: varchar(50)
+#   - created_at: timestamp
+#   - updated_at: timestamp
 #
-# ## subscriptions (user subscriptions)
-#   - id: uuid (PK)
-#   - user_id: uuid (FK -> profiles.id)
-#   - plan_id: uuid (FK -> plans.id)
-#   - payment_method: text
-#   - start_subscription: timestamp with time zone
-#   - end_subscription: timestamp with time zone
+# ## subscriptions
+#   - id: integer (PK)
+#   - user_id: integer (FK -> users.id)
+#   - plan_id: integer (FK -> plans.id)
+#   - payment_method: varchar(100)
+#   - start_subscription: timestamp
+#   - end_subscription: timestamp
 #
-# ## template_contracts (contract templates for AI)
-#   - id: uuid (PK)
-#   - title: text
+# ## template_contracts
+#   - id: integer (PK)
+#   - category: varchar(100)
+#   - subcategory: varchar(100)
+#   - title: varchar(255)
 #   - description: text
 #   - rules: text (AI generation rules)
-#   - contract_template_url: text
-#   - created_at: timestamp with time zone
-#   - updated_at: timestamp with time zone
+#   - steps_config: json
+#   - contract_template_url: varchar(255)
+#   - created_at: timestamp
+#   - updated_at: timestamp
 #
-# ## contracts (user generated contracts)
-#   - id: uuid (PK)
-#   - user_id: uuid (FK -> profiles.id)
-#   - template_id: uuid (FK -> template_contracts.id)
-#   - title: text
+# ## contracts
+#   - id: integer (PK)
+#   - user_id: integer (FK -> users.id)
+#   - template_id: integer (FK -> template_contracts.id)
+#   - title: varchar(255)
 #   - description: text
-#   - contract_url: text (stored file URL)
-#   - created_at: timestamp with time zone
+#   - status: varchar(50)
+#   - form_data: json
+#   - generated_content: text
+#   - contract_url: varchar(255)
+#   - created_at: timestamp
+#   - updated_at: timestamp
 #
-# ## agents (AI agents per template)
-#   - id: uuid (PK)
-#   - template_id: uuid (FK -> template_contracts.id)
-#   - title: text
+# ## contract_drafts
+#   - id: integer (PK)
+#   - user_id: integer (FK -> users.id)
+#   - template_id: integer (FK -> template_contracts.id)
+#   - current_step: integer
+#   - form_data: json
+#   - created_at: timestamp
+#   - updated_at: timestamp
+#
+# ## agents
+#   - id: integer (PK)
+#   - template_id: integer (FK -> template_contracts.id)
+#   - title: varchar(255)
+#   - description: text
 #   - prompt: text (system prompt for AI)
-#   - created_at: timestamp with time zone
-#   - updated_at: timestamp with time zone
+#   - created_at: timestamp
+#   - updated_at: timestamp

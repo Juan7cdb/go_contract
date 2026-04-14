@@ -1,4 +1,4 @@
-"""Agent schemas matching Supabase agents table."""
+"""Agent schemas for AI contract configuration."""
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime

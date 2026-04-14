@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED, summary="Registrar nuevo usuario")
 async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     """
     Register a new user in PostgreSQL.
@@ -82,7 +82,7 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
         )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, summary="Iniciar sesión")
 async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     """
     Authenticate user and return JWT tokens.
@@ -124,7 +124,7 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
         )
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse, summary="Refrescar token (Placeholder)")
 async def refresh_token(request: RefreshTokenRequest):
     """
     Refresh tokens (Placeholder).
@@ -135,7 +135,7 @@ async def refresh_token(request: RefreshTokenRequest):
     )
 
 
-@router.post("/logout", response_model=AuthResponse)
+@router.post("/logout", response_model=AuthResponse, summary="Cerrar sesión")
 async def logout(current_user: User = Depends(get_current_user)):
     """
     Logout placeholder (handled client-side by dropping the JWT).
@@ -143,7 +143,7 @@ async def logout(current_user: User = Depends(get_current_user)):
     return AuthResponse(message="Successfully logged out")
 
 
-@router.post("/password-reset", response_model=AuthResponse)
+@router.post("/password-reset", response_model=AuthResponse, summary="Solicitar reseteo de contraseña (Placeholder)")
 async def request_password_reset(request: PasswordResetRequest):
     """
     Password reset email (Placeholder).
@@ -151,7 +151,7 @@ async def request_password_reset(request: PasswordResetRequest):
     return AuthResponse(message="If an account exists, a password reset email has been sent")
 
 
-@router.post("/password-update", response_model=AuthResponse)
+@router.post("/password-update", response_model=AuthResponse, summary="Actualizar contraseña")
 async def update_password(
     request: PasswordUpdate,
     db: AsyncSession = Depends(get_db),
@@ -184,7 +184,7 @@ async def update_password(
         )
 
 
-@router.get("/me")
+@router.get("/me", summary="Obtener información del usuario actual")
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
     Get current user profile.

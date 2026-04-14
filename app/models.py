@@ -13,6 +13,7 @@ class User(Base):
     first_name: Mapped[Optional[str]] = mapped_column(String(100))
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
     credits_remaining: Mapped[int] = mapped_column(Integer, default=5)
+    preferences: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False, server_default='{}')
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

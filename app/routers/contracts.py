@@ -45,7 +45,7 @@ def sanitize_inputs(inputs: dict) -> dict:
 
 # ============== AI Generation Endpoint ==============
 
-@router.post("/generate", response_model=ContractGenerateResponse)
+@router.post("/generate", response_model=ContractGenerateResponse, summary="Generar contrato con IA")
 async def generate_contract(
     request: ContractGenerateRequest,
     db: AsyncSession = Depends(get_db),
@@ -102,7 +102,7 @@ async def generate_contract(
 
 # ============== CRUD Endpoints ==============
 
-@router.post("/", response_model=ContractResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ContractResponse, status_code=status.HTTP_201_CREATED, summary="Guardar un nuevo contrato")
 async def create_contract(
     contract_data: ContractCreate,
     db: AsyncSession = Depends(get_db),
@@ -168,7 +168,7 @@ async def create_contract(
         )
 
 
-@router.get("/", response_model=ContractListResponse)
+@router.get("/", response_model=ContractListResponse, summary="Listar contratos del usuario")
 async def list_contracts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -231,7 +231,7 @@ async def list_contracts(
         )
 
 
-@router.get("/{contract_id}", response_model=ContractResponse)
+@router.get("/{contract_id}", response_model=ContractResponse, summary="Obtener detalle de contrato")
 async def get_contract(
     contract_id: str,
     db: AsyncSession = Depends(get_db),
@@ -275,7 +275,7 @@ async def get_contract(
         )
 
 
-@router.put("/{contract_id}", response_model=ContractResponse)
+@router.put("/{contract_id}", response_model=ContractResponse, summary="Actualizar contrato existente")
 async def update_contract(
     contract_id: str,
     contract_data: ContractUpdate,
@@ -328,7 +328,7 @@ async def update_contract(
         )
 
 
-@router.delete("/{contract_id}")
+@router.delete("/{contract_id}", summary="Eliminar contrato")
 async def delete_contract(
     contract_id: str,
     db: AsyncSession = Depends(get_db),

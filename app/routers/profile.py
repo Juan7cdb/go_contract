@@ -11,7 +11,7 @@ from app.schemas.profile import ProfileUpdate, ProfileResponse, ProfilePublic
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profile", tags=["Profile"])
 
-@router.get("/", response_model=ProfileResponse)
+@router.get("/", response_model=ProfileResponse, summary="Obtener perfil del usuario")
 async def get_profile(current_user: User = Depends(get_current_user)):
     """
     Get the current user's profile.
@@ -21,11 +21,12 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         first_name=current_user.first_name,
         last_name=current_user.last_name,
+        preferences=current_user.preferences or {},
         created_at=current_user.created_at,
         updated_at=current_user.updated_at
     )
 
-@router.put("/", response_model=ProfileResponse)
+@router.put("/", response_model=ProfileResponse, summary="Actualizar perfil y preferencias")
 async def update_profile(
     profile_data: ProfileUpdate,
     db: AsyncSession = Depends(get_db),
@@ -39,6 +40,10 @@ async def update_profile(
             current_user.first_name = profile_data.first_name
         if profile_data.last_name is not None:
             current_user.last_name = profile_data.last_name
+        if profile_data.preferences is not None:
+            # Merge with existing preferences to avoid completely overwriting if we just send part of it
+            current_prefs = current_user.preferences or {}
+            current_user.preferences = {**current_prefs, **profile_data.preferences}
             
         db.add(current_user)
         # Commit handled by get_db
@@ -49,6 +54,7 @@ async def update_profile(
             email=current_user.email,
             first_name=current_user.first_name,
             last_name=current_user.last_name,
+            preferences=current_user.preferences or {},
             created_at=current_user.created_at,
             updated_at=current_user.updated_at
         )
@@ -60,7 +66,7 @@ async def update_profile(
             detail="Error updating profile"
         )
 
-@router.delete("/", response_model=dict)
+@router.delete("/", response_model=dict, summary="Eliminar cuenta del usuario")
 async def delete_account(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
