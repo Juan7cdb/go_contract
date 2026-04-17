@@ -1,9 +1,8 @@
-"""AI Service for contract generation and agent-based chat using the new google-genai SDK."""
-from google import genai
-from google.genai import types
+"""AI Service for contract generation and agent-based chat using OpenAI SDK."""
+import openai
 from app.core.config import settings
 from app.schemas.ai import ChatMessage, Attachment
-from typing import AsyncGenerator, Optional, TYPE_CHECKING, List, Any
+from typing import AsyncGenerator, Optional, TYPE_CHECKING, List
 import json
 import logging
 import base64
@@ -16,23 +15,24 @@ logger = logging.getLogger(__name__)
 # Lazy initialization
 _ai_service_instance = None
 
+# ============================================================================
+# MODEL CONFIGURATION
+# Change these constants to switch models across the entire application.
+# Recommended: "gpt-4o" for quality, "gpt-4o-mini" for speed/cost savings.
+# ============================================================================
+PRIMARY_MODEL = "gpt-4o-mini"       # Used for: LexIA, Contract Generation, Smart Panel
+FAST_MODEL = "gpt-4o-mini"          # Used for: Quick chat, Agent chat
+
 
 class AIService:
     def __init__(self):
-        if not settings.GOOGLE_API_KEY or "change_me" in settings.GOOGLE_API_KEY:
-            logger.warning("GOOGLE_API_KEY is not set correctly. AI features will fail.")
-        
-        self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
-        
-        # Generation config optimized for legal accuracy
-        self.config_base = types.GenerateContentConfig(
-            temperature=0.2,  # Low temperature for legal accuracy
-            top_p=0.95,
-            top_k=64,
-            max_output_tokens=8192,
-        )
+        if not settings.OPENAI_API_KEY or "change_me" in settings.OPENAI_API_KEY:
+            logger.warning("OPENAI_API_KEY is not set correctly. AI features will fail.")
 
-        # Default system instructions
+        # Initialize the async OpenAI client
+        self.client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+        # Default system instructions (UNCHANGED from before - same prompts)
         self.legal_chat_instruction = """You are an expert legal assistant specializing in Colombian and International law. 
 Your goal is to provide accurate, professional, and helpful legal information.
 Always clarify that you provide information, not legal advice, and recommend consulting a licensed attorney for specific cases.
@@ -61,158 +61,224 @@ Responde con la precisión y rigor de un juez redactando una opinión técnica, 
 5. **Idioma congruente:** Responde siempre en el mismo idioma en el que se te formule la pregunta. Mantén los latinismos y clasificaciones legales en su idioma de origen si son universales.
 6. **Alcance Estricto:** If the user asks questions outside of legal, commercial, contractual, or regulatory scope, respond: *"Este modelo de IA creado por Go Contracto Inc. solo responde a preguntas jurídicas, revisión de contratos y análisis legal."*"""
 
-        # Tool definition for the new SDK
-        self.search_tool = types.Tool(
-            function_declarations=[
-                types.FunctionDeclaration(
-                    name="search_user_contracts",
-                    description="Search and retrieve the user's contracts from the database. Use this tool autonomously when the user asks about their contracts, summaries, or recent activity.",
-                    parameters=types.Schema(
-                        type="OBJECT",
-                        properties={
-                            "status": types.Schema(type="STRING", description="Filter by contract status (e.g., 'completed', 'in_progress', 'draft')"),
-                            "date_range": types.Schema(type="STRING", description="Optional date range or relative time (e.g., 'last 30 days')"),
-                            "contract_id": types.Schema(type="STRING", description="Optional specific contract ID")
+        # Tool definition for OpenAI Function Calling
+        self.search_tool = {
+            "type": "function",
+            "function": {
+                "name": "search_user_contracts",
+                "description": "Search and retrieve the user's contracts from the database. Use this tool autonomously when the user asks about their contracts, summaries, or recent activity.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "status": {
+                            "type": "string",
+                            "description": "Filter by contract status (e.g., 'completed', 'in_progress', 'draft')"
+                        },
+                        "date_range": {
+                            "type": "string",
+                            "description": "Optional date range or relative time (e.g., 'last 30 days')"
+                        },
+                        "contract_id": {
+                            "type": "string",
+                            "description": "Optional specific contract ID"
                         }
-                    )
-                )
-            ]
-        )
+                    }
+                }
+            }
+        }
 
-        self.lexia_config = types.GenerateContentConfig(
-            temperature=0.2,
-            system_instruction=self.lexia_prompt,
-            tools=[self.search_tool]
-        )
-
-    def _map_history(self, history: list[ChatMessage]) -> list[types.Content]:
-        """Maps ChatMessage history to the format expected by the new SDK."""
+    # ========================================================================
+    # HELPER: Map history from frontend format to OpenAI format
+    # ========================================================================
+    def _map_history(self, history: list[ChatMessage]) -> list[dict]:
+        """Maps ChatMessage history to OpenAI messages format.
+        
+        Frontend sends role='model' for assistant messages (Gemini legacy).
+        OpenAI expects role='assistant'. This method handles the translation.
+        """
         mapped = []
         for msg in history:
-            role = "user" if msg.role == "user" else "model"
-            parts = []
+            role = "user" if msg.role == "user" else "assistant"
+            # Combine all text parts into a single content string
+            text_parts = []
             for p in msg.parts:
                 if isinstance(p, str):
-                    parts.append(types.Part.from_text(text=p))
-                elif isinstance(p, dict):
-                    # Handle multimodal or function calling parts in history if needed
-                    if "text" in p:
-                        parts.append(types.Part.from_text(text=p["text"]))
-                    elif "inline_data" in p:
-                        # Assuming structure compatible with types.Part.from_bytes
-                        pass
-            if parts:
-                mapped.append(types.Content(role=role, parts=parts))
+                    text_parts.append(p)
+                elif isinstance(p, dict) and "text" in p:
+                    text_parts.append(p["text"])
+            if text_parts:
+                mapped.append({"role": role, "content": "\n".join(text_parts)})
         return mapped
 
+    # ========================================================================
+    # METHOD 1: Standard chat (non-streaming, no tools)
+    # ========================================================================
     async def chat(self, message: str, history: list[ChatMessage]) -> str:
         """Standard chat with full response."""
-        contents = self._map_history(history)
-        
-        # Add current message with instruction
-        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=f"{self.legal_chat_instruction}\n\nUser question: {message}")]))
-        
-        response = await self.client.aio.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=contents,
-            config=self.config_base
-        )
-        return response.text
+        messages = [{"role": "system", "content": self.legal_chat_instruction}]
+        messages.extend(self._map_history(history))
+        messages.append({"role": "user", "content": message})
 
+        response = await self.client.chat.completions.create(
+            model=FAST_MODEL,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=8192,
+        )
+        return response.choices[0].message.content
+
+    # ========================================================================
+    # METHOD 2: LexIA chat (non-streaming, WITH tools/function calling)
+    # Called by: routers/chat.py → POST /chat/
+    # ========================================================================
     async def chat_lexia(self, message: str, history: list[ChatMessage], db: "AsyncSession", user_id: int) -> str:
         """Chat specifically with the LexIA agent, supporting tool calls."""
-        contents = self._map_history(history)
-            
-        # FIX: client.aio.chats.create is NOT a coroutine, do not await it.
-        chat = self.client.aio.chats.create(
-            model="gemini-1.5-pro",
-            history=contents,
-            config=self.lexia_config
-        )
-        
-        response = await chat.send_message(message)
-        
-        # Handle function calls
-        if response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if part.function_call:
-                    fc = part.function_call
-                    if fc.name == "search_user_contracts":
-                        tool_data = await self._execute_search_contracts(fc.args, db, user_id)
-                        
-                        # Feed Tool result back
-                        response = await chat.send_message(
-                            types.Content(
-                                role="user",
-                                parts=[
-                                    types.Part.from_function_response(
-                                        name=fc.name,
-                                        response=tool_data
-                                    )
-                                ]
-                            )
-                        )
-                        break
-                        
-        return response.text
+        messages = [{"role": "system", "content": self.lexia_prompt}]
+        messages.extend(self._map_history(history))
+        messages.append({"role": "user", "content": message})
 
+        response = await self.client.chat.completions.create(
+            model=PRIMARY_MODEL,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=8192,
+            tools=[self.search_tool],
+            tool_choice="auto",
+        )
+
+        assistant_message = response.choices[0].message
+
+        # Handle function calls
+        if assistant_message.tool_calls:
+            tc = assistant_message.tool_calls[0]
+            if tc.function.name == "search_user_contracts":
+                args = json.loads(tc.function.arguments)
+                tool_data = await self._execute_search_contracts(args, db, user_id)
+
+                # Append assistant message with tool_call to history
+                messages.append(assistant_message.model_dump())
+                # Append tool result
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": json.dumps(tool_data, ensure_ascii=False)
+                })
+
+                # Get final response with tool data
+                followup = await self.client.chat.completions.create(
+                    model=PRIMARY_MODEL,
+                    messages=messages,
+                    temperature=0.2,
+                    max_tokens=8192,
+                )
+                return followup.choices[0].message.content
+
+        return assistant_message.content
+
+    # ========================================================================
+    # METHOD 3: LexIA streaming chat (WITH tools/function calling)
+    # Called by: routers/chat.py → POST /chat/stream
+    # ========================================================================
     async def chat_lexia_stream(
         self, message: str, history: List[ChatMessage], db: "AsyncSession", user_id: int, attachments: List[Attachment] = []
     ) -> AsyncGenerator[str, None]:
-        """Streaming chat for LexIA with corrected SDK usage."""
-        contents = self._map_history(history)
-            
-        # FIX: client.aio.chats.create is NOT a coroutine, do not await it.
-        chat = self.client.aio.chats.create(
-            model="gemini-1.5-pro",
-            history=contents,
-            config=self.lexia_config
-        )
-        
-        # Prepare message parts
-        msg_parts = [types.Part.from_text(text=message)]
+        """Streaming chat for LexIA with function calling support."""
+        messages = [{"role": "system", "content": self.lexia_prompt}]
+        messages.extend(self._map_history(history))
+
+        # Build user message content (text + optional image attachments)
+        user_content: list | str = message
         if attachments:
+            content_parts = [{"type": "text", "text": message}]
             for att in attachments:
                 try:
-                    raw_data = base64.b64decode(att.base64_data)
-                    msg_parts.append(types.Part.from_bytes(data=raw_data, mime_type=att.mime_type))
+                    content_parts.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{att.mime_type};base64,{att.base64_data}"
+                        }
+                    })
                 except Exception as e:
-                    logger.error(f"Error decoding attachment: {e}")
+                    logger.error(f"Error processing attachment: {e}")
+            user_content = content_parts
 
-        response_stream = await chat.send_message_stream(msg_parts)
-        
-        has_func_call = False
-        fc_name = None
-        fc_args = None
-        
-        # Note: In current google-genai aio, we iterate over the .stream property synchronously
-        for chunk in response_stream.stream:
-            if chunk.candidates and chunk.candidates[0].content.parts:
-                for part in chunk.candidates[0].content.parts:
-                    if part.function_call:
-                        has_func_call = True
-                        fc_name = part.function_call.name
-                        fc_args = part.function_call.args
-                        break
-                    if part.text:
-                        yield part.text
-            if has_func_call:
-                break
-                
-        if has_func_call and fc_name == "search_user_contracts":
+        messages.append({"role": "user", "content": user_content})
+
+        # First call: may return streamed text OR a tool call
+        stream = await self.client.chat.completions.create(
+            model=PRIMARY_MODEL,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=8192,
+            tools=[self.search_tool],
+            tool_choice="auto",
+            stream=True,
+        )
+
+        collected_content = ""
+        tool_call_id = None
+        tool_call_name = None
+        tool_call_args = ""
+
+        async for chunk in stream:
+            delta = chunk.choices[0].delta if chunk.choices else None
+            if not delta:
+                continue
+
+            # Collect streamed text
+            if delta.content:
+                collected_content += delta.content
+                yield delta.content
+
+            # Collect tool call fragments
+            if delta.tool_calls:
+                tc_delta = delta.tool_calls[0]
+                if tc_delta.id:
+                    tool_call_id = tc_delta.id
+                if tc_delta.function:
+                    if tc_delta.function.name:
+                        tool_call_name = tc_delta.function.name
+                    if tc_delta.function.arguments:
+                        tool_call_args += tc_delta.function.arguments
+
+        # If a tool call was made, execute it and stream the followup
+        if tool_call_id and tool_call_name == "search_user_contracts":
             yield "\n*Consultando tus contratos en la base de datos...*\n"
-            tool_data = await self._execute_search_contracts(fc_args, db, user_id)
-            
-            followup_stream = await chat.send_message_stream(
-                types.Content(
-                    role="user",
-                    parts=[types.Part.from_function_response(name=fc_name, response=tool_data)]
-                )
-            )
-            for follow_chunk in followup_stream.stream:
-                if follow_chunk.text:
-                    yield follow_chunk.text
+            args = json.loads(tool_call_args) if tool_call_args else {}
+            tool_data = await self._execute_search_contracts(args, db, user_id)
 
+            # Build followup messages
+            messages.append({
+                "role": "assistant",
+                "content": collected_content if collected_content else None,
+                "tool_calls": [{
+                    "id": tool_call_id,
+                    "type": "function",
+                    "function": {"name": tool_call_name, "arguments": tool_call_args}
+                }]
+            })
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": json.dumps(tool_data, ensure_ascii=False)
+            })
+
+            followup_stream = await self.client.chat.completions.create(
+                model=PRIMARY_MODEL,
+                messages=messages,
+                temperature=0.2,
+                max_tokens=8192,
+                stream=True,
+            )
+            async for follow_chunk in followup_stream:
+                delta = follow_chunk.choices[0].delta if follow_chunk.choices else None
+                if delta and delta.content:
+                    yield delta.content
+
+    # ========================================================================
+    # METHOD 4: Smart Panel streaming chat (context-aware, no tools)
+    # Called by: routers/chat.py → POST /chat/smart-panel/stream
+    # ========================================================================
     async def chat_smart_panel_stream(
         self, message: str, history: List[ChatMessage], template_name: str, form_data: dict, attachments: List[Attachment] = []
     ) -> AsyncGenerator[str, None]:
@@ -225,44 +291,60 @@ Los datos que ha ingresado hasta ahora en el formulario son:
 Actúa como un asistente legal experto que acompaña al usuario en la creación de este documento. 
 Usa este contexto para responder sus dudas específicas sobre las cláusulas, opciones o implicaciones legales de lo que está llenando.
 """
-        contents = []
+        messages = [{"role": "system", "content": context_prompt}]
+
         if not history:
-            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=context_prompt + "\n\nHola, necesito ayuda con este contrato.")]))
-            contents.append(types.Content(role="model", parts=[types.Part.from_text(text=f"Entendido. Te ayudaré con tu contrato de {template_name}. ¿Qué duda tienes?")]))
+            messages.append({"role": "user", "content": "Hola, necesito ayuda con este contrato."})
+            messages.append({"role": "assistant", "content": f"Entendido. Te ayudaré con tu contrato de {template_name}. ¿Qué duda tienes?"})
         else:
-            contents = self._map_history(history)
-        
-        msg_parts = [types.Part.from_text(text=f"{context_prompt}\n\nPregunta del usuario: {message}")]
+            messages.extend(self._map_history(history))
+
+        # Build user message with optional attachments
+        user_content: list | str = message
         if attachments:
+            content_parts = [{"type": "text", "text": message}]
             for att in attachments:
                 try:
-                    raw_data = base64.b64decode(att.base64_data)
-                    msg_parts.append(types.Part.from_bytes(data=raw_data, mime_type=att.mime_type))
+                    content_parts.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{att.mime_type};base64,{att.base64_data}"}
+                    })
                 except Exception:
                     pass
-        
-        # FIX: client.aio.chats.create is NOT a coroutine
-        chat = self.client.aio.chats.create(model="gemini-1.5-pro", history=contents)
-        response_stream = await chat.send_message_stream(msg_parts)
-        
-        for chunk in response_stream.stream:
-            if chunk.text:
-                yield chunk.text
+            user_content = content_parts
 
+        messages.append({"role": "user", "content": user_content})
+
+        stream = await self.client.chat.completions.create(
+            model=PRIMARY_MODEL,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=8192,
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta if chunk.choices else None
+            if delta and delta.content:
+                yield delta.content
+
+    # ========================================================================
+    # INTERNAL: Execute the search_user_contracts function call
+    # NO CHANGES from previous version - this is pure database logic
+    # ========================================================================
     async def _execute_search_contracts(self, args: dict, db: "AsyncSession", user_id: int) -> dict:
         """Internal helper to execute the DB query safely."""
         from app.models import Contract
         from sqlalchemy import select
-        
+
         try:
             stmt = select(Contract).where(Contract.user_id == user_id)
             if args:
                 if args.get("status"):
                     stmt = stmt.where(Contract.status == args["status"])
-                
+
             res = await db.execute(stmt)
             contracts = res.scalars().all()
-            
+
             context_data = []
             for c in contracts[:10]:
                 content_preview = (c.generated_content[:2500] + "...") if c.generated_content else ""
@@ -274,70 +356,93 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
                     "content_preview": content_preview,
                     "form_data": c.form_data
                 })
-                
+
             if not context_data:
                 return {"result": "No se encontraron contratos para el usuario."}
             return {"contracts": context_data}
-            
+
         except Exception as e:
             logger.error(f"Error checking DB in LexIA Tool: {e}")
             return {"error": "Hubo un error consultando la DB. Pide disculpas al usuario."}
 
+    # ========================================================================
+    # METHOD 5: Standard streaming chat (no tools)
+    # ========================================================================
     async def chat_stream(self, message: str, history: list[ChatMessage]) -> AsyncGenerator[str, None]:
         """Streaming chat for real-time responses."""
-        contents = self._map_history(history)
-        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=f"{self.legal_chat_instruction}\n\nUser question: {message}")]))
+        messages = [{"role": "system", "content": self.legal_chat_instruction}]
+        messages.extend(self._map_history(history))
+        messages.append({"role": "user", "content": message})
 
-        response_stream = await self.client.aio.models.generate_content_stream(
-            model="gemini-1.5-flash",
-            contents=contents,
-            config=self.config_base
+        stream = await self.client.chat.completions.create(
+            model=FAST_MODEL,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=8192,
+            stream=True,
         )
-        for chunk in response_stream.stream:
-            if chunk.text:
-                yield chunk.text
+        async for chunk in stream:
+            delta = chunk.choices[0].delta if chunk.choices else None
+            if delta and delta.content:
+                yield delta.content
 
+    # ========================================================================
+    # METHOD 6: Agent chat (non-streaming, no tools)
+    # Called by: routers/agents.py → POST /agents/chat
+    # ========================================================================
     async def chat_with_agent(self, message: str, agent_prompt: str, history: Optional[list[dict]] = None) -> str:
         """Chat with a specific AI agent using its custom prompt."""
-        full_prompt = f"{agent_prompt}\n\n---\nUser message: {message}"
+        messages = [{"role": "system", "content": agent_prompt}]
         if history:
-            history_text = "\n".join([f"{h.get('role', 'user')}: {h.get('content', '')}" for h in history[-5:]])
-            full_prompt = f"{agent_prompt}\n\n---\nRecent conversation:\n{history_text}\n\nUser message: {message}"
-        
-        response = await self.client.aio.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=full_prompt,
-            config=self.config_base
-        )
-        return response.text
+            for h in history[-5:]:
+                role = "user" if h.get("role") == "user" else "assistant"
+                messages.append({"role": role, "content": h.get("content", "")})
+        messages.append({"role": "user", "content": message})
 
+        response = await self.client.chat.completions.create(
+            model=FAST_MODEL,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=8192,
+        )
+        return response.choices[0].message.content
+
+    # ========================================================================
+    # METHOD 7: Agent streaming chat (no tools)
+    # Called by: routers/agents.py → POST /agents/chat/stream
+    # ========================================================================
     async def chat_with_agent_stream(self, message: str, agent_prompt: str, history: Optional[list[dict]] = None) -> AsyncGenerator[str, None]:
         """Streaming chat with a specific AI agent."""
-        full_prompt = f"{agent_prompt}\n\n---\nUser message: {message}"
+        messages = [{"role": "system", "content": agent_prompt}]
         if history:
-            history_text = "\n".join([f"{h.get('role', 'user')}: {h.get('content', '')}" for h in history[-5:]])
-            full_prompt = f"{agent_prompt}\n\n---\nRecent conversation:\n{history_text}\n\nUser message: {message}"
-        
-        response_stream = await self.client.aio.models.generate_content_stream(
-            model="gemini-1.5-flash",
-            contents=full_prompt,
-            config=self.config_base
-        )
-        for chunk in response_stream.stream:
-            if chunk.text:
-                yield chunk.text
+            for h in history[-5:]:
+                role = "user" if h.get("role") == "user" else "assistant"
+                messages.append({"role": role, "content": h.get("content", "")})
+        messages.append({"role": "user", "content": message})
 
+        stream = await self.client.chat.completions.create(
+            model=FAST_MODEL,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=8192,
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta if chunk.choices else None
+            if delta and delta.content:
+                yield delta.content
+
+    # ========================================================================
+    # METHOD 8: Generate contract (non-streaming, no tools)
+    # Called by: routers/contracts.py → POST /contracts/generate
+    # ========================================================================
     async def generate_contract(self, contract_type: str, inputs: dict, rules: Optional[str] = None, agent_prompt: Optional[str] = None) -> str:
         """Generate a complete contract document."""
         system_context = self.contract_instruction
         if agent_prompt:
             system_context = f"{self.contract_instruction}\n\nADDITIONAL AGENT INSTRUCTIONS:\n{agent_prompt}"
-        
-        prompt = f"""{system_context}
 
----
-
-Generate a **{contract_type}**.
+        user_prompt = f"""Generate a **{contract_type}**.
 
 **Party and Contract Details**:
 {self._format_inputs(inputs)}
@@ -347,13 +452,20 @@ Generate a **{contract_type}**.
 
 Ensure the contract is complete and legally sound. Include all standard protective clauses.
 """
-        response = await self.client.aio.models.generate_content(
-            model="gemini-1.5-pro",
-            contents=prompt,
-            config=self.config_base
+        response = await self.client.chat.completions.create(
+            model=PRIMARY_MODEL,
+            messages=[
+                {"role": "system", "content": system_context},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=8192,
         )
-        return response.text
+        return response.choices[0].message.content
 
+    # ========================================================================
+    # HELPER: Format inputs (UNCHANGED - pure string logic)
+    # ========================================================================
     def _format_inputs(self, inputs: dict, indent: int = 0) -> str:
         """Format inputs dictionary into readable string for prompt."""
         lines = []

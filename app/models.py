@@ -41,7 +41,7 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), nullable=False)
     payment_method: Mapped[Optional[str]] = mapped_column(String(100))
     start_subscription: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -74,11 +74,11 @@ class Contract(Base):
     __tablename__ = "contracts"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    template_id: Mapped[int] = mapped_column(ForeignKey("template_contracts.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("template_contracts.id"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(50), default="completed") # draft, in_progress, completed
+    status: Mapped[str] = mapped_column(String(50), default="completed", index=True) # draft, in_progress, completed
     form_data: Mapped[dict] = mapped_column(JSON, nullable=False)
     generated_content: Mapped[Optional[str]] = mapped_column(Text)
     contract_url: Mapped[Optional[str]] = mapped_column(String(255))
@@ -107,8 +107,8 @@ class ContractDraft(Base):
     __tablename__ = "contract_drafts"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    template_id: Mapped[int] = mapped_column(ForeignKey("template_contracts.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey("template_contracts.id"), nullable=False, index=True)
     current_step: Mapped[int] = mapped_column(Integer, default=1)
     form_data: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

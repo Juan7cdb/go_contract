@@ -6,7 +6,7 @@ class Attachment(BaseModel):
     base64_data: str
 
 class ChatMessage(BaseModel):
-    role: str # 'user' or 'model'
+    role: str # 'user' or 'assistant' (OpenAI convention)
     parts: List[Any] # Can be List[str] or List[Dict] (for multimodal)
 
 class ChatRequest(BaseModel):

@@ -41,8 +41,8 @@ class Settings(BaseSettings):
                 return v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
     
-    # Google Gemini
-    GOOGLE_API_KEY: str
+    # OpenAI
+    OPENAI_API_KEY: str
     
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 20
