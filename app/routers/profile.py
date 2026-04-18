@@ -9,7 +9,7 @@ from app.dependencies.auth import get_current_user
 from app.schemas.profile import ProfileUpdate, ProfileResponse, ProfilePublic
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/profile", tags=["Profile"])
+router = APIRouter(tags=["Profile"])
 
 @router.get("/", response_model=ProfileResponse, summary="Obtener perfil del usuario")
 async def get_profile(current_user: User = Depends(get_current_user)):

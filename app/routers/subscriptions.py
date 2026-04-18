@@ -17,7 +17,7 @@ from app.schemas.subscription import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
+router = APIRouter(tags=["Subscriptions"])
 
 
 @router.get("/current", response_model=SubscriptionWithPlan)

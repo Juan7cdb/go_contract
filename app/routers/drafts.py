@@ -14,7 +14,7 @@ from app.schemas.draft import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/drafts", tags=["Drafts"])
+router = APIRouter(tags=["Drafts"])
 
 @router.post("/", response_model=ContractDraftResponse, status_code=status.HTTP_201_CREATED)
 async def create_draft(

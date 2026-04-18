@@ -9,7 +9,7 @@ from app.models import Plan
 from app.schemas.plan import PlanResponse, PlanListResponse
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/plans", tags=["Plans"])
+router = APIRouter(tags=["Plans"])
 
 
 @router.get("/", response_model=PlanListResponse)

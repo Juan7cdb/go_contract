@@ -18,7 +18,7 @@ from app.schemas.agent import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/agents", tags=["AI Agents"])
+router = APIRouter(tags=["AI Agents"])
 
 
 @router.get("/", response_model=AgentListResponse)

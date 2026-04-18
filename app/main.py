@@ -93,19 +93,19 @@ from app.routers import (
 )
 
 # Authentication & User Management
-app.include_router(auth.router, prefix=f"{settings.API_V1_STR}")
-app.include_router(profile.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth")
+app.include_router(profile.router, prefix=f"{settings.API_V1_STR}/profile")
 
 # Subscription Management
-app.include_router(plans.router, prefix=f"{settings.API_V1_STR}")
-app.include_router(subscriptions.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(plans.router, prefix=f"{settings.API_V1_STR}/plans")
+app.include_router(subscriptions.router, prefix=f"{settings.API_V1_STR}/subscriptions")
 
 # Contract Generation & Management
-app.include_router(templates.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(templates.router, prefix=f"{settings.API_V1_STR}/templates")
 app.include_router(contracts.router, prefix=f"{settings.API_V1_STR}/contracts")
-app.include_router(drafts.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(drafts.router, prefix=f"{settings.API_V1_STR}/drafts")
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard")
 
 # AI Features
-app.include_router(agents.router, prefix=f"{settings.API_V1_STR}")
+app.include_router(agents.router, prefix=f"{settings.API_V1_STR}/agents")
 app.include_router(chat.router, prefix=f"{settings.API_V1_STR}/chat")

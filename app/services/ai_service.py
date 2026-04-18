@@ -464,8 +464,7 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
 {json.dumps(inputs, indent=2, ensure_ascii=False)}
 
 Ensure all provided fields are correctly mapped into the relevant clauses. 
-If the contract is a 'Subcontractor Agreement', ensure 'Pay-when-paid' and Insurance clauses are present. 
-If it is an 'Immigration Legal Services Agreement', ensure 'No Guarantee' and 'Flat Fee' rules are respected.
+Refer to the specific legal rules provided in the system context to ensure compliance.
 """
         response = await self.client.chat.completions.create(
             model=PRIMARY_MODEL,

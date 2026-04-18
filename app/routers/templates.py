@@ -14,7 +14,7 @@ from app.schemas.template_contract import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/templates", tags=["Contract Templates"])
+router = APIRouter(tags=["Contract Templates"])
 
 
 @router.get("/", response_model=TemplateContractListResponse)
