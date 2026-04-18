@@ -438,9 +438,7 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
                 yield delta.content
 
     # ========================================================================
-    # METHOD 8: Generate contract (non-streaming, no tools)
-    # Called by: routers/contracts.py → POST /contracts/generate
-    # ============================================    async def generate_contract(self, contract_type: str, inputs: dict, rules: Optional[str] = None, agent_prompt: Optional[str] = None) -> str:
+    async def generate_contract(self, contract_type: str, inputs: dict, rules: Optional[str] = None, agent_prompt: Optional[str] = None) -> str:
         """Generate a complete contract document with high legal precision."""
         system_context = f"""{self.contract_instruction}
         
@@ -479,7 +477,6 @@ If it is an 'Immigration Legal Services Agreement', ensure 'No Guarantee' and 'F
             max_tokens=10000, # Large buffer for complex contracts
         )
         return response.choices[0].message.content
-e.choices[0].message.content
 
     # ========================================================================
     # HELPER: Format inputs (UNCHANGED - pure string logic)
