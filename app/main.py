@@ -2,6 +2,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -49,6 +50,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve static files for contract downloads (local uploads)
+import os
+uploads_path = os.path.join(os.getcwd(), "uploads")
+if not os.path.exists(uploads_path):
+    os.makedirs(uploads_path)
+app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
 
 
 @app.get("/health")

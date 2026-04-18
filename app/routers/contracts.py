@@ -10,6 +10,8 @@ from app.dependencies.auth import get_current_user
 from app.models import User, Contract, TemplateContract, Agent
 from app.core.database import get_db
 from app.services.ai_service import get_ai_service
+from app.services.pdf_service import get_pdf_service
+from app.services.storage_service import get_storage_service
 from app.schemas.contract import (
     ContractCreate,
     ContractUpdate,
@@ -128,12 +130,27 @@ async def create_contract(
                 detail="No credits remaining. Please upgrade your plan."
             )
         
+        # 1. Generate PDF from the generated content
+        pdf_bytes = get_pdf_service().generate_pdf_from_markdown(
+            contract_data.generated_content, 
+            f"Contract_{current_user.id}_{template_id}.pdf"
+        )
+        
+        contract_url = ""
+        if pdf_bytes:
+            # 2. Upload to storage
+            filename = f"contract_{current_user.id}_{int(func.now().tstamp()) if hasattr(func.now(), 'tstamp') else id(contract_data)}.pdf"
+            # Simple unique filename
+            import time
+            filename = f"contract_{current_user.id}_{int(time.time())}.pdf"
+            contract_url = await get_storage_service().upload_pdf(pdf_bytes, filename)
+
         new_contract = Contract(
             user_id=current_user.id,
             template_id=template_id,
             title=contract_data.title,
             description=contract_data.description,
-            contract_url=contract_data.contract_url,
+            contract_url=contract_url or contract_data.contract_url,
             generated_content=contract_data.generated_content,
             form_data=contract_data.form_data or {}
         )

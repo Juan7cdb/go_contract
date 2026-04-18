@@ -440,22 +440,34 @@ Usa este contexto para responder sus dudas específicas sobre las cláusulas, op
     # ========================================================================
     # METHOD 8: Generate contract (non-streaming, no tools)
     # Called by: routers/contracts.py → POST /contracts/generate
-    # ========================================================================
-    async def generate_contract(self, contract_type: str, inputs: dict, rules: Optional[str] = None, agent_prompt: Optional[str] = None) -> str:
-        """Generate a complete contract document."""
-        system_context = self.contract_instruction
+    # ============================================    async def generate_contract(self, contract_type: str, inputs: dict, rules: Optional[str] = None, agent_prompt: Optional[str] = None) -> str:
+        """Generate a complete contract document with high legal precision."""
+        system_context = f"""{self.contract_instruction}
+        
+### RULES FOR THIS SPECIFIC CONTRACT:
+- Type: {contract_type}
+- Legal Rules: {rules if rules else "Apply standard international legal clauses for this type of document."}
+- Format: Use Markdown with clear headers, bolded parties, and numbered clauses.
+- Jurisdiction: Unless otherwise specified in inputs, default to appropriate clauses for the parties' addresses.
+- Language: Respond in the same language used in the inputs (Spanish/English).
+
+### QUALITY GUIDELINES:
+1. DO NOT use placeholders like [INSERT DATE]. Use the data provided.
+2. If data is missing for a non-critical field, use standard boilerplate.
+3. Include signature blocks for both parties at the end.
+4. Ensure a professional, "corporate legal" tone."""
+
         if agent_prompt:
-            system_context = f"{self.contract_instruction}\n\nADDITIONAL AGENT INSTRUCTIONS:\n{agent_prompt}"
+            system_context += f"\n\nADDITIONAL AGENT-SPECIFIC INSTRUCTIONS:\n{agent_prompt}"
 
-        user_prompt = f"""Generate a **{contract_type}**.
+        user_prompt = f"""Generate a formal **{contract_type}** document based on the following user data:
 
-**Party and Contract Details**:
-{self._format_inputs(inputs)}
+**USER DATA (JSON FORM DATA):**
+{json.dumps(inputs, indent=2, ensure_ascii=False)}
 
-**Template Rules**:
-{rules if rules else "None - use standard clauses."}
-
-Ensure the contract is complete and legally sound. Include all standard protective clauses.
+Ensure all provided fields are correctly mapped into the relevant clauses. 
+If the contract is a 'Subcontractor Agreement', ensure 'Pay-when-paid' and Insurance clauses are present. 
+If it is an 'Immigration Legal Services Agreement', ensure 'No Guarantee' and 'Flat Fee' rules are respected.
 """
         response = await self.client.chat.completions.create(
             model=PRIMARY_MODEL,
@@ -463,10 +475,11 @@ Ensure the contract is complete and legally sound. Include all standard protecti
                 {"role": "system", "content": system_context},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.2,
-            max_tokens=8192,
+            temperature=0.1, # Lower temperature for consistency
+            max_tokens=10000, # Large buffer for complex contracts
         )
         return response.choices[0].message.content
+e.choices[0].message.content
 
     # ========================================================================
     # HELPER: Format inputs (UNCHANGED - pure string logic)
