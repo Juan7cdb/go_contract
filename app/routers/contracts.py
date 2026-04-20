@@ -3,6 +3,8 @@ import logging
 import html
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
+import io
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -100,6 +102,40 @@ async def generate_contract(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate contract. Please try again."
         )
+
+
+# ============== PDF Export Endpoint ==============
+
+@router.post("/export-pdf", summary="Exportar contrato como PDF")
+async def export_contract_pdf(
+    request: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate and return a PDF from markdown contract content.
+    """
+    generated_content = request.get("generated_content", "")
+    filename = request.get("filename", "contract") + ".pdf"
+
+    if not generated_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No contract content provided."
+        )
+
+    pdf_bytes = get_pdf_service().generate_pdf_from_markdown(generated_content, filename)
+
+    if not pdf_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate PDF. WeasyPrint may not be available."
+        )
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 # ============== CRUD Endpoints ==============
