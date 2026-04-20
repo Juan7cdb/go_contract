@@ -39,101 +39,145 @@ class PDFService:
             # Convert Markdown to HTML
             html_content = markdown.markdown(md_content, extensions=['tables', 'fenced_code'])
             
-            # Wrap in basic HTML structure with premium styling
-            full_html = f"""
-            <html>
-            <head>
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
-                <style>
-                    @page {{
-                        margin: 2.5cm;
-                        @bottom-right {{
-                            content: "Página " counter(page) " de " counter(pages);
-                            font-size: 9pt;
-                            color: #6b7280;
-                        }}
-                    }}
-                    body {{
-                        font-family: 'Inter', 'Helvetica', sans-serif;
-                        line-height: 1.6;
-                        color: #111827;
-                        font-size: 11pt;
-                    }}
-                    .header {{
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        border-bottom: 2px solid #2563eb;
-                        padding-bottom: 10px;
-                        margin-bottom: 30px;
-                    }}
-                    .logo {{
-                        font-weight: 700;
-                        font-size: 18pt;
-                        color: #2563eb;
-                    }}
-                    .doc-info {{
-                        text-align: right;
-                        font-size: 9pt;
-                        color: #6b7280;
-                    }}
-                    h1 {{ 
-                        color: #111827; 
-                        text-align: center; 
-                        margin-bottom: 30px; 
-                        font-size: 20pt;
-                        text-transform: uppercase;
-                    }}
-                    h2 {{ 
-                        color: #1e3a8a; 
-                        border-bottom: 1px solid #e5e7eb; 
-                        padding-bottom: 5px; 
-                        margin-top: 20px;
-                        font-size: 14pt;
-                    }}
-                    h3 {{ color: #374151; font-size: 12pt; margin-top: 15px; }}
-                    p {{ margin-bottom: 10px; text-align: justify; }}
-                    table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-                    th, td {{ border: 1px solid #d1d5db; padding: 10px; text-align: left; font-size: 10pt; }}
-                    th {{ background-color: #f9fafb; font-weight: 700; }}
-                    .footer {{ 
-                        text-align: center; 
-                        font-size: 8pt; 
-                        color: #9ca3af; 
-                        margin-top: 50px;
-                        border-top: 1px solid #e5e7eb;
-                        padding-top: 10px;
-                    }}
-                    .signature-box {{
-                        margin-top: 50px;
-                        display: table;
-                        width: 100%;
-                    }}
-                    .signature-line {{
-                        display: table-cell;
-                        width: 45%;
-                        border-top: 1px solid #000;
-                        padding-top: 5px;
-                        text-align: center;
-                    }}
-                    .spacer {{ display: table-cell; width: 10%; }}
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="logo">GoContract</div>
-                    <div class="doc-info">
-                        Documento ID: {filename.split('.')[0]}<br>
-                        Generado: {time.strftime('%Y-%m-%d %H:%M:%S')}
-                    </div>
-                </div>
-                {html_content}
-                <div class="footer">
-                    &copy; {time.strftime('%Y')} Go Contracto Inc. - Este documento ha sido generado mediante inteligencia artificial y tiene validez legal entre las partes firmantes.
-                </div>
-            </body>
-            </html>
-            """
+            # Wrap in professional legal document HTML structure
+            full_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {{
+            size: letter;
+            margin: 2.54cm 2.54cm 2.54cm 2.54cm;
+            @bottom-center {{
+                content: counter(page) " of " counter(pages);
+                font-family: "Times New Roman", Times, serif;
+                font-size: 9pt;
+                color: #666;
+            }}
+        }}
+        body {{
+            font-family: "Times New Roman", Times, serif;
+            font-size: 12pt;
+            line-height: 1.5;
+            color: #000000;
+            margin: 0;
+            padding: 0;
+        }}
+        h1 {{
+            font-family: "Times New Roman", Times, serif;
+            font-size: 14pt;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+            margin-top: 0;
+            margin-bottom: 24pt;
+            letter-spacing: 1px;
+        }}
+        h2 {{
+            font-family: "Times New Roman", Times, serif;
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 16pt;
+            margin-bottom: 6pt;
+            text-transform: none;
+        }}
+        h3 {{
+            font-family: "Times New Roman", Times, serif;
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 12pt;
+            margin-bottom: 4pt;
+        }}
+        p {{
+            margin-top: 0;
+            margin-bottom: 8pt;
+            text-align: justify;
+        }}
+        ul, ol {{
+            margin-top: 4pt;
+            margin-bottom: 8pt;
+            padding-left: 24pt;
+        }}
+        li {{
+            margin-bottom: 4pt;
+        }}
+        strong {{
+            font-weight: bold;
+        }}
+        em {{
+            font-style: italic;
+        }}
+        hr {{
+            border: none;
+            border-top: 1px solid #000;
+            margin: 16pt 0;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12pt 0;
+            font-size: 11pt;
+        }}
+        th, td {{
+            border: 1px solid #000;
+            padding: 6pt 8pt;
+            text-align: left;
+        }}
+        th {{
+            font-weight: bold;
+            background-color: #f0f0f0;
+        }}
+        .header-bar {{
+            border-bottom: 2px solid #000;
+            margin-bottom: 8pt;
+            padding-bottom: 6pt;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }}
+        .logo-text {{
+            font-family: "Times New Roman", Times, serif;
+            font-weight: bold;
+            font-size: 13pt;
+            letter-spacing: 1px;
+        }}
+        .doc-meta {{
+            font-size: 9pt;
+            color: #444;
+            text-align: right;
+            line-height: 1.4;
+        }}
+        .footer-bar {{
+            border-top: 1px solid #999;
+            margin-top: 24pt;
+            padding-top: 6pt;
+            font-size: 8pt;
+            color: #666;
+            text-align: center;
+        }}
+        blockquote {{
+            margin-left: 24pt;
+            margin-right: 0;
+            border-left: 3px solid #ccc;
+            padding-left: 12pt;
+            color: #333;
+        }}
+    </style>
+</head>
+<body>
+    <div class="header-bar">
+        <div class="logo-text">GoContract</div>
+        <div class="doc-meta">
+            Generated: {time.strftime('%B %d, %Y')}<br>
+            ID: {filename.split('.')[0][:30]}
+        </div>
+    </div>
+    {html_content}
+    <div class="footer-bar">
+        &copy; {time.strftime('%Y')} GoContract Inc. &nbsp;|&nbsp; This document was generated by AI and is legally binding between the signing parties.
+    </div>
+</body>
+</html>"""
             
             # Convert HTML to PDF (bytes)
             pdf_bytes = HTML(string=full_html).write_pdf()
