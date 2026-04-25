@@ -1,5 +1,6 @@
 import markdown
 import logging
+import re
 from typing import Optional
 import os
 import time
@@ -36,6 +37,10 @@ class PDFService:
             return None
             
         try:
+            # Strip fenced code wrapper if AI returned ```markdown...```
+            md_content = re.sub(r'^```(?:markdown|md)?\s*\n?', '', md_content.strip())
+            md_content = re.sub(r'\n?```\s*$', '', md_content)
+
             # Convert Markdown to HTML
             html_content = markdown.markdown(md_content, extensions=['tables', 'fenced_code'])
             
@@ -50,21 +55,23 @@ class PDFService:
             margin: 2.54cm 2.54cm 2.54cm 2.54cm;
             @bottom-center {{
                 content: counter(page) " of " counter(pages);
-                font-family: "Times New Roman", Times, serif;
+                font-family: Georgia, "DejaVu Serif", "Liberation Serif", "Times New Roman", serif;
                 font-size: 9pt;
                 color: #666;
             }}
         }}
         body {{
-            font-family: "Times New Roman", Times, serif;
+            font-family: Georgia, "DejaVu Serif", "Liberation Serif", "Times New Roman", serif;
             font-size: 11pt;
             line-height: 1.4;
             color: #000000;
             margin: 0;
             padding: 0;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }}
         h1 {{
-            font-family: "Times New Roman", Times, serif;
+            font-family: Georgia, "DejaVu Serif", "Liberation Serif", "Times New Roman", serif;
             font-size: 16pt;
             font-weight: bold;
             text-align: center;
@@ -74,7 +81,7 @@ class PDFService:
             letter-spacing: 1px;
         }}
         h2 {{
-            font-family: "Times New Roman", Times, serif;
+            font-family: Georgia, "DejaVu Serif", "Liberation Serif", "Times New Roman", serif;
             font-size: 11pt;
             font-weight: bold;
             text-transform: uppercase;
@@ -84,7 +91,7 @@ class PDFService:
             padding-top: 10pt;
         }}
         h3 {{
-            font-family: "Times New Roman", Times, serif;
+            font-family: Georgia, "DejaVu Serif", "Liberation Serif", "Times New Roman", serif;
             font-size: 11pt;
             font-weight: bold;
             margin-top: 12pt;
@@ -146,7 +153,7 @@ class PDFService:
             text-align: center;
         }}
         .company-name {{
-            font-family: "Times New Roman", Times, serif;
+            font-family: Georgia, "DejaVu Serif", "Liberation Serif", "Times New Roman", serif;
             font-weight: bold;
             font-size: 20pt;
             letter-spacing: 2px;
@@ -174,10 +181,12 @@ class PDFService:
         .sig-row {{
             display: flex;
             justify-content: space-between;
-            gap: 40pt;
         }}
         .sig-col {{
             flex: 1;
+        }}
+        .sig-col + .sig-col {{
+            margin-left: 40pt;
         }}
         .sig-line {{
             border-bottom: 1px solid #000;
