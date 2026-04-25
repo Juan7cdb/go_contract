@@ -14,6 +14,8 @@ class User(Base):
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
     credits_remaining: Mapped[int] = mapped_column(Integer, default=5)
     preferences: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False, server_default='{}')
+    reset_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    reset_token_expiry: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

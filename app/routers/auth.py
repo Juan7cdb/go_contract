@@ -1,6 +1,7 @@
 """Authentication router for user registration, login, and session management."""
 import logging
-from datetime import timedelta
+import secrets
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -19,10 +20,12 @@ from app.schemas.auth import (
     TokenResponse,
     RefreshTokenRequest,
     PasswordResetRequest,
+    PasswordResetConfirm,
     PasswordUpdate,
     AuthResponse,
 )
 from app.dependencies.auth import get_current_user
+from app.services.email_service import send_reset_email
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
@@ -143,12 +146,55 @@ async def logout(current_user: User = Depends(get_current_user)):
     return AuthResponse(message="Successfully logged out")
 
 
-@router.post("/password-reset", response_model=AuthResponse, summary="Solicitar reseteo de contraseña (Placeholder)")
-async def request_password_reset(request: PasswordResetRequest):
-    """
-    Password reset email (Placeholder).
-    """
-    return AuthResponse(message="If an account exists, a password reset email has been sent")
+@router.post("/forgot-password", response_model=AuthResponse, summary="Solicitar reseteo de contraseña")
+async def forgot_password(request: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        result = await db.execute(select(User).where(User.email == request.email))
+        user = result.scalar_one_or_none()
+
+        if user:
+            token = secrets.token_urlsafe(32)
+            user.reset_token = token
+            user.reset_token_expiry = datetime.utcnow() + timedelta(minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES)
+            db.add(user)
+            await db.flush()
+            await send_reset_email(user.email, token)
+
+        return AuthResponse(message="If an account exists, a password reset email has been sent")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Forgot password error: {e}")
+        return AuthResponse(message="If an account exists, a password reset email has been sent")
+
+
+@router.post("/reset-password", response_model=AuthResponse, summary="Confirmar nueva contraseña con token")
+async def reset_password(request: PasswordResetConfirm, db: AsyncSession = Depends(get_db)):
+    try:
+        result = await db.execute(select(User).where(User.reset_token == request.token))
+        user = result.scalar_one_or_none()
+
+        if not user or user.reset_token_expiry is None or datetime.utcnow() > user.reset_token_expiry:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token"
+            )
+
+        user.hashed_password = get_password_hash(request.new_password)
+        user.reset_token = None
+        user.reset_token_expiry = None
+        db.add(user)
+
+        logger.info(f"Password reset successful for user: {user.id}")
+        return AuthResponse(message="Password reset successfully")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not reset password"
+        )
 
 
 @router.post("/password-update", response_model=AuthResponse, summary="Actualizar contraseña")

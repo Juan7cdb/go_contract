@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
-from typing import Optional, List
+from typing import Optional
 
 class Settings(BaseSettings):
     # App
@@ -43,7 +43,12 @@ class Settings(BaseSettings):
     
     # OpenAI
     OPENAI_API_KEY: str
-    
+
+    # Email (Resend)
+    RESEND_API_KEY: str = ""
+    FROM_EMAIL: str = "onboarding@resend.dev"
+    PASSWORD_RESET_EXPIRE_MINUTES: int = 60
+
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 20
 

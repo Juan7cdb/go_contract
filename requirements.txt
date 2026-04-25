@@ -16,6 +16,7 @@ PyJWT==2.8.0
 python-jose[cryptography]==3.3.0
 slowapi==0.1.9
 # Async utilities
+resend==2.10.0
 httpx==0.24.1
 httpcore==0.17.3
 markdown==3.5.2

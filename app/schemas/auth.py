@@ -1,6 +1,5 @@
 """Authentication schemas for user registration and login."""
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
 
 
 class UserRegister(BaseModel):
@@ -39,6 +38,12 @@ class PasswordResetRequest(BaseModel):
 class PasswordUpdate(BaseModel):
     """Schema for password update."""
     current_password: str = Field(..., description="Current password for verification")
+    new_password: str = Field(..., min_length=8)
+
+
+class PasswordResetConfirm(BaseModel):
+    """Schema for confirming password reset with token."""
+    token: str
     new_password: str = Field(..., min_length=8)
 
 
