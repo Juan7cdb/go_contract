@@ -158,13 +158,17 @@ async def forgot_password(request: PasswordResetRequest, db: AsyncSession = Depe
             user.reset_token_expiry = datetime.utcnow() + timedelta(minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES)
             db.add(user)
             await db.flush()
-            await send_reset_email(user.email, token)
+            try:
+                await send_reset_email(user.email, token)
+                logger.info(f"Reset email dispatched to {user.email}")
+            except Exception as email_err:
+                logger.error(f"Resend failed for {user.email}: {email_err}", exc_info=True)
 
         return AuthResponse(message="If an account exists, a password reset email has been sent")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Forgot password error: {e}")
+        logger.error(f"Forgot password error: {e}", exc_info=True)
         return AuthResponse(message="If an account exists, a password reset email has been sent")
 
 

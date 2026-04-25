@@ -44,9 +44,11 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: str
 
-    # Email (Resend)
+    # Email
     RESEND_API_KEY: str = ""
     FROM_EMAIL: str = "onboarding@resend.dev"
+    GMAIL_USER: str = ""
+    GMAIL_APP_PASSWORD: str = ""
     PASSWORD_RESET_EXPIRE_MINUTES: int = 60
 
     # Rate Limiting
