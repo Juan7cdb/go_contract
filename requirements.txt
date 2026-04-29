@@ -23,3 +23,4 @@ markdown==3.5.2
 weasyprint==61.2
 pydyf==0.8.0
 boto3==1.34.44
+pypdf==4.3.1

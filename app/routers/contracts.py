@@ -205,6 +205,7 @@ async def create_contract(
             template_id=str(template_id),
             title=new_contract.title,
             description=new_contract.description,
+            status=new_contract.status,
             contract_url=new_contract.contract_url or "",
             generated_content=new_contract.generated_content,
             form_data=new_contract.form_data,
@@ -265,6 +266,7 @@ async def list_contracts(
                     template_id=str(c.template_id),
                     title=c.title,
                     description=c.description,
+                    status=c.status,
                     contract_url=c.contract_url or "",
                     generated_content=c.generated_content,
                     form_data=c.form_data,
@@ -312,12 +314,13 @@ async def get_contract(
             template_id=str(contract.template_id),
             title=contract.title,
             description=contract.description,
+            status=contract.status,
             contract_url=contract.contract_url,
             generated_content=contract.generated_content,
             form_data=contract.form_data,
             created_at=contract.created_at
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -367,6 +370,7 @@ async def update_contract(
             template_id=str(contract.template_id),
             title=contract.title,
             description=contract.description,
+            status=contract.status,
             contract_url=contract.contract_url,
             created_at=contract.created_at
         )

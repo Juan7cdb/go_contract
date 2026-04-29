@@ -61,10 +61,11 @@ async def chat_stream_endpoint(
             try:
                 # Need to use async generator correctly
                 async for chunk in ai_service.chat_lexia_stream(
-                    chat_request.message, 
+                    chat_request.message,
                     chat_request.history,
                     db,
-                    current_user.id
+                    current_user.id,
+                    chat_request.attachments or []
                 ):
                     # Remove multiple newlines and wrap in SSE format
                     text = str(chunk).replace("\n", "\\n")

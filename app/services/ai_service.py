@@ -6,6 +6,7 @@ from typing import AsyncGenerator, Optional, TYPE_CHECKING, List
 import json
 import logging
 import base64
+import io
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,6 +92,49 @@ Respond with the precision of a judge drafting a technical opinion, but with the
                 }
             }
         }
+
+    # ========================================================================
+    # HELPER: Extract text from a base64-encoded PDF
+    # ========================================================================
+    def _extract_pdf_text(self, base64_data: str) -> str:
+        try:
+            import pypdf
+            pdf_bytes = base64.b64decode(base64_data)
+            reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+            pages = [page.extract_text() or "" for page in reader.pages]
+            return "\n\n".join(p for p in pages if p.strip())
+        except Exception as e:
+            logger.error(f"Error extracting PDF text: {e}")
+            return "[No se pudo leer el contenido del PDF]"
+
+    # ========================================================================
+    # HELPER: Build OpenAI content parts from text + attachments
+    # ========================================================================
+    def _build_content_with_attachments(self, message: str, attachments: List[Attachment]) -> list | str:
+        if not attachments:
+            return message
+
+        content_parts: list = [{"type": "text", "text": message}]
+        pdf_texts: list[str] = []
+
+        for att in attachments:
+            mime = att.mime_type.lower()
+            if mime == "application/pdf":
+                extracted = self._extract_pdf_text(att.base64_data)
+                pdf_texts.append(extracted)
+            elif mime.startswith("image/") and mime in ("image/jpeg", "image/png", "image/gif", "image/webp"):
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{att.mime_type};base64,{att.base64_data}"}
+                })
+            else:
+                logger.warning(f"Unsupported attachment type ignored: {att.mime_type}")
+
+        if pdf_texts:
+            combined = "\n\n---\n\n".join(pdf_texts)
+            content_parts[0]["text"] = f"{message}\n\n[Contenido del documento adjunto]\n{combined}"
+
+        return content_parts
 
     # ========================================================================
     # HELPER: Map history from frontend format to OpenAI format
@@ -191,22 +235,7 @@ Respond with the precision of a judge drafting a technical opinion, but with the
         messages = [{"role": "system", "content": self.lexia_prompt}]
         messages.extend(self._map_history(history))
 
-        # Build user message content (text + optional image attachments)
-        user_content: list | str = message
-        if attachments:
-            content_parts = [{"type": "text", "text": message}]
-            for att in attachments:
-                try:
-                    content_parts.append({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{att.mime_type};base64,{att.base64_data}"
-                        }
-                    })
-                except Exception as e:
-                    logger.error(f"Error processing attachment: {e}")
-            user_content = content_parts
-
+        user_content = self._build_content_with_attachments(message, attachments)
         messages.append({"role": "user", "content": user_content})
 
         # First call: may return streamed text OR a tool call

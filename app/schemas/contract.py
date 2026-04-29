@@ -32,6 +32,7 @@ class ContractResponse(BaseModel):
     template_id: str
     title: str
     description: str
+    status: str = "completed"
     contract_url: Optional[str] = None
     generated_content: Optional[str] = None
     form_data: Optional[dict] = None
