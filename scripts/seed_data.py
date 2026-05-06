@@ -781,137 +781,102 @@ MANDATORY RULES:
                 "subcategory": "marketing",
                 "title": "Marketing Services Agreement",
                 "description": "Acuerdo de gestión de redes sociales y producción de contenido. Incluye fases de proyecto, términos de pago, propiedad intelectual y política de cancelación.",
-                "rules": """GENERATE A "SOCIAL MEDIA MANAGEMENT SERVICE AGREEMENT" OR "MARKETING SERVICES AGREEMENT" WITH EXACTLY THIS STRUCTURE:
+                "rules": """GENERATE A "SOCIAL MEDIA MANAGEMENT SERVICE AGREEMENT" as a complete, professional legal document. Use the input data below to fill in all specifics. The contract must cover the following topics and information (use this as a content reference, NOT as literal text to copy):
 
-TITLE: "SOCIAL MEDIA MANAGEMENT SERVICE AGREEMENT"
-(or "MARKETING SERVICES AGREEMENT" depending on the specific services described)
+CONTENT THAT MUST BE INCLUDED:
 
-HEADER BLOCK:
-This [Agreement Type] is entered into by and between:
-[clientName] (hereinafter referred to as "The Agency" or "The Provider"), [clientAddress]
-and
-[contractorName] (hereinafter referred to as "The Client"), [contractorAddress]
+1. PURPOSE AND SCOPE OF SERVICES:
+- Services provided: [msaServices] (list all selected services)
+- Total content pieces: [msaContentCount] per month ([msaVideosCount] videos and [msaStaticPostsCount] static posts)
+- Platforms where content will be published: [selectedPlatforms]
+- Include: monitoring & responding to messages, engagement strategy & lead generation, advertising campaign management on selected platforms, monthly performance report.
 
-SECTION 1 — PURPOSE AND SCOPE OF SERVICES:
-The purpose of this Agreement is to define the terms and conditions under which [clientName] will provide social media management and content production services, including but not limited to:
-[List all selectedContentTypes as bullet points]
-Content publishing on the following platforms:
-[List each platform from selectedPlatforms]
-[If sponsoredPostsCount > 0:] Content creation: [sponsoredPostsCount] posts, [videosCount] videos, [storiesCount] stories
-[If servicesDescription is provided:] Additional services: [servicesDescription]
-Monitoring and responding to messages and comments on selected platforms.
-Engagement strategy and lead generation.
-Advertising campaign management on selected platforms.
-Monthly performance report.
+2. PROJECT STAGES (always include all 4 in this order):
+- Quotation Stage: pre-signing activities, no work begins until deposit received.
+- Strategy Development Stage: starts 1 business day after deposit, research + creative strategy, ends upon client approval.
+- Design/Recording Stage: content creation and production, up to [msaRevisionRounds] revision rounds, ends upon written client approval.
+- Launching Stage: final delivery and publishing, additional charges apply for post-approval changes.
 
-SECTION 2 — STAGES OF THE AGREEMENT:
-The project will be divided into the following phases:
+3. TERM AND RENEWAL:
+- Duration: [contractDuration]
+- Renewal type: [renewalTerm] (No Renewal = new agreement required; Auto Renewal = auto-renews if no written cancellation 1 month prior; Manual Renewal = explicit agreement needed)
 
-1. Quotation Stage: All activities performed prior to signing this agreement and receiving the initial deposit. NO WORK WILL COMMENCE UNTIL THE DEPOSIT IS RECEIVED.
+4. OBLIGATIONS OF BOTH PARTIES:
+- Provider: deliver services per best practices, monthly reports, manage ad budgets, maintain confidentiality.
+- Client: provide materials, make timely payments, approve content within deadlines.
 
-2. Strategy Development Stage: Begins one (1) business day after the deposit is received. The Agency will conduct research, gather references, and develop a comprehensive creative strategy tailored to The Client's brand objectives. Concludes upon formal approval by The Client.
+5. TIMELINE AND SCHEDULE:
+- Schedule shared via Google Calendar.
+- Changes require 7 days advance notice.
+- Unauthorized schedule changes incur a 5% fee.
+- Cancellation within 2 business days of deposit: 50% refund. After that: no refund.
+- Formal cancellation via official email only.
 
-3. Design/Recording Stage: Starts immediately after strategy approval. Includes creation of design assets and/or recording sessions. Up to [revisionRoundsAllowed] rounds of revisions will be conducted. Concludes once The Client provides written approval.
+6. FEES AND PAYMENT TERMS:
+- Monthly service fee: $[msaMonthlyFee] USD
+- [If msaAdvertisingBudget is true: include that it covers a social media advertising budget]
+- Late payment penalty: [msaLatePaymentFee], max 50% of outstanding amount.
+- Services suspended if payment not received within 15 calendar days.
+- Unauthorized content use before full payment = breach of contract.
+- Accepted payment methods (mark selected ones): Bank Transfer / Check / Cash / Credit Card (credit card includes 2.99% processing fee)
+  Accepted: [msaPaymentMethods]
 
-4. Launching Stage: Commences after final approval of all deliverables. The Agency will prepare and deliver final files and assist with initial implementation. Any modifications or additional requests during this stage will incur an additional charge.
+7. FEES AND PENALTIES:
+- No refund after cancellation post-advance-payment.
+- Termination requires formal written communication.
 
-SECTION 3 — TERM AND RENEWAL:
-[Based on durationModel / contractDuration:]
-This agreement shall have a duration of [contractDurationValue] [contractDurationUnit] from the date of signing.
-[If renewalTerm / renewalFrequency specified:] If The Client does not provide written notice of cancellation at least [cancellationNotice] prior to the agreement's expiration date, the contract shall automatically renew under the same terms.
-[If durationModel is autoRenewal:] Automatic renewal includes a [%] rate adjustment per renewal period.
+8. INTELLECTUAL PROPERTY:
+- All materials belong to The Agency until full payment.
+- Upon full payment: client receives limited, non-exclusive, non-transferable license.
+- Client cannot resell, sublicense, or modify without written authorization.
+- Client warrants ownership of any provided content/logos.
+- [If msaPortfolioRights is true:] Agency retains right to use work for portfolio/promotional purposes.
 
-SECTION 4 — OBLIGATIONS OF THE PARTIES:
-Obligations of The Provider:
-- Deliver services described in Section 1 in accordance with industry best practices
-- Provide monthly performance reports with metrics and results
-- Manage advertising budgets per The Client's needs
-- Maintain confidentiality of all information provided by The Client
+9. MODIFICATIONS AND SERVICE CHANGES:
+- [msaRevisionRounds] revision rounds per deliverable; additional revisions billed at hourly rate.
+- Client must approve deliverables in writing.
+- No response within [msaImpliedApproval] = implied acceptance / auto-approval.
+- Post-approval modifications require new quotation.
 
-Obligations of The Client:
-- Provide all necessary information, materials, and brand assets for service execution
-- Make timely payments as agreed
-- Approve content within the established timeframes
+10. CONFIDENTIALITY AND PROFESSIONAL RELATIONSHIP:
+- Confidential information safeguarded indefinitely.
+- [If msaNDA is true:] NDA included as annex.
+- [If msaNonCompete is true:] Non-Compete Agreement included as annex.
+- [If msaPortfolioRights is true:] Provider may use work for portfolio after delivery.
+- Professional conduct required; no defamation. Breach = legal action.
 
-SECTION 5 — TIMELINE AND SCHEDULE:
-[If campaignStartDate / campaignEndDate provided:] Campaign period: [campaignStartDate] to [campaignEndDate]
-[If brandApprovalWindow provided:] Content approval window: [brandApprovalWindow] business days. If no response is received within [brandApprovalWindow] hours/days of delivery, the material will be considered APPROVED BY DEFAULT.
-Any changes to the schedule must be approved at least seven (7) days in advance.
-Cancellations must be formally communicated via email to the designated representative.
+11. LIMITATION OF LIABILITY:
+- Not liable for: platform algorithm changes, client misuse, third-party losses, expected outcomes (sales/leads/engagement).
+- Liability capped at total fees paid under this Agreement.
 
-SECTION 6 — FEES AND PAYMENT TERMS:
-[Based on compensationModel / compensationAmount:]
-- Flat fee: Total service fee: $[compensationAmount] [currency]
-- Monthly retainer: Monthly service fee: $[compensationAmount] [currency]
-[If depositAmount provided:] Deposit: $[depositAmount], due upon signing.
-[If invoiceTiming provided:] Invoice timing: [invoiceTiming]
-Payment due: [paymentDue] from invoice date.
-[If lateInterest provided:] Late payments will incur a penalty of [lateInterest] per week/month, up to a maximum of 50% of the outstanding amount.
-If payment is not received within 15 calendar days, The Provider reserves the right to SUSPEND SERVICES until payment is completed.
-[If isNonRefundable:] All fees are NON-REFUNDABLE once work has begun.
-If The Client cancels the project within two (2) business days of making the initial deposit, 50% of the deposit will be refunded. After this period, no refunds will be issued.
+12. INDEPENDENT CONTRACTOR STATUS:
+- Provider is independent contractor. No partnership, employment, or joint venture created.
 
-SECTION 7 — FEES AND PENALTIES:
-Work completed up to the date of termination will be billed in full. Termination requires formal written communication via email.
+13. NON-SOLICITATION:
+- [If msaNonSolicitation is true:] Client may not hire/solicit Agency staff for [msaNonSolicitationDuration] months after termination.
 
-SECTION 8 — INTELLECTUAL PROPERTY:
-[Based on ipOwnership:]
-- workForHire / client owns: All creative materials, designs, strategies, scripts, and deliverables become the exclusive property of The Client upon full payment.
-- Agency retains (default): All creative materials remain the exclusive property of [clientName] until full payment is received. Upon full payment, The Client receives a limited, non-exclusive, non-transferable license to use the content solely for their own business purposes. The Agency retains the right to use completed works for portfolio and promotional purposes.
-The Client may not sell, resell, sublicense, or modify any content without The Agency's written authorization.
-The Client warrants that any content, logo, or material provided is owned or properly licensed.
+14. TERMINATION AND CANCELLATION POLICY:
+- Refund policy: [msaRefundPolicy]
+- No refunds after the applicable period.
+- Work completed to termination date billed in full.
+- Written cancellation via email to signing representative required.
 
-SECTION 9 — MODIFICATIONS AND SERVICE CHANGES:
-The Client is entitled to [revisionRoundsAllowed] round(s) of revisions per deliverable. Additional revisions will be billed at an additional rate.
-If no response is received within 48 hours of delivery, the material will be considered approved by default.
-Once approved, any subsequent modification shall require a new quotation.
-
-SECTION 10 — CONFIDENTIALITY AND PROFESSIONAL RELATIONSHIP:
-[If confidentiality:] Confidential information will be safeguarded. Neither party shall disparage or defame the other. Breach of this clause may result in legal action.
-The Provider may use the material developed for portfolio purposes after delivery, protecting The Client's personal and confidential information.
-
-SECTION 11 — LIMITATION OF LIABILITY:
-The Provider shall NOT be liable for:
-- Platform algorithm changes or account restrictions
-- The Client's misuse of provided materials
-- Losses resulting from third-party services
-- Expected outcomes such as sales, engagement, or leads
-In no event shall The Provider's liability exceed the total fees paid under this Agreement.
-
-SECTION 12 — INDEPENDENT CONTRACTOR STATUS:
-The Provider acts as an INDEPENDENT CONTRACTOR. Nothing in this Agreement creates a partnership, employment, or joint venture relationship.
-
-SECTION 13 — NON-SOLICITATION:
-The Client agrees not to solicit, hire, or contract directly any employee or subcontractor of The Provider for a period of [24] months following termination of this Agreement.
-
-SECTION 14 — TERMINATION AND CANCELLATION POLICY:
-Cancellations made within five (5) business days of payment will receive a 50% refund. No refunds after that period.
-Work completed to the date of termination will be billed in full.
-Cancellations must be submitted in writing via email to the official representative.
-
-SECTION 15 — JURISDICTION AND DISPUTE RESOLUTION:
-[If disputeResolution provided:] Dispute resolution method: [disputeResolution]
-This agreement shall be governed and construed in accordance with the laws of the State of [governingLawState]. Disputes shall be resolved in the courts of [governingLawState].
+15. JURISDICTION AND DISPUTE RESOLUTION:
+- Governed by laws of State of [msaJurisdiction].
+- Disputes resolved in courts of [msaJurisdiction].
 
 SIGNATURE BLOCK:
-The Agency / Provider
-Name: [clientName]
-Signature: _______________________
-Date: ___________________________
-
-The Client
-Name: [contractorName]
-Signature: _______________________
-Date: ___________________________
+- The Agency: Name [clientName], Signature line, Phone, Date
+- The Client: Name [contractorName], Signature line, Phone, Date
 
 MANDATORY RULES:
-- The 4-stage workflow (Quotation → Strategy → Design → Launch) MUST always appear.
-- NO WORK STARTS before deposit is received — always state this.
-- Revision rounds are capped at the specified number.
-- Client approval (48h implied acceptance) MUST be included.
-- IP ownership must specify what happens upon full payment.
-- Non-solicitation clause (24 months) MUST appear.
-- JURISDICTION: State per governingLawState."""
+- Write in formal, professional legal English.
+- All 4 project stages MUST appear in Section 2.
+- NO WORK STARTS before deposit is received — state this clearly.
+- Revision rounds = [msaRevisionRounds]. Implied acceptance after [msaImpliedApproval].
+- Non-solicitation duration = [msaNonSolicitationDuration] months (if enabled).
+- Jurisdiction = [msaJurisdiction].
+- Include NDA/Non-Compete mentions only if msaNDA/msaNonCompete are true."""
             },
 
             # -----------------------------------------------------------------
