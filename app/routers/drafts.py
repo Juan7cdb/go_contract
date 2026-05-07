@@ -142,6 +142,28 @@ async def update_draft(
             detail="Error updating draft"
         )
 
+@router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_drafts(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete all drafts for the current user."""
+    try:
+        result = await db.execute(
+            select(ContractDraft).where(ContractDraft.user_id == current_user.id)
+        )
+        drafts = result.scalars().all()
+        for draft in drafts:
+            await db.delete(draft)
+        logger.info(f"All drafts deleted for user {current_user.id} ({len(drafts)} drafts)")
+        return None
+    except Exception as e:
+        logger.error(f"Error deleting all drafts for user {current_user.id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error deleting drafts"
+        )
+
 @router.delete("/{draft_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_draft(
     draft_id: int,
