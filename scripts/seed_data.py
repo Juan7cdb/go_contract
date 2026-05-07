@@ -880,111 +880,64 @@ MANDATORY RULES:
             },
 
             # -----------------------------------------------------------------
-            # ID 8 — SERVICE AGREEMENT (MAINTENANCE / GENERAL SERVICES)
+            # ID 8 — MAINTENANCE AGREEMENT
             # Based on: Maintenance Agreement -Contractors Business Ops.pdf
-            # UI: Contractors Business Ops → Service Agreement / Work Order / Job Agreement
+            # UI: Contractors Business Ops → Maintenance Agreement
             # -----------------------------------------------------------------
             {
                 "id": 8,
                 "category": "contractors",
                 "subcategory": "services",
-                "title": "Service Agreement",
-                "description": "Acuerdo de prestación de servicios generales o de mantenimiento. Incluye alcance de servicio, tarifas, obligaciones del cliente y exclusiones.",
-                "rules": """GENERATE A "SERVICE AGREEMENT" OR "MAINTENANCE AGREEMENT" WITH EXACTLY THIS STRUCTURE:
+                "title": "Maintenance Agreement",
+                "description": "Acuerdo de mantenimiento profesional entre un proveedor de servicios y un cliente. Cubre alcance, frecuencia, pagos, confidencialidad, responsabilidad y resolución de disputas.",
+                "rules": """You are generating a professional MAINTENANCE AGREEMENT. Use the form data provided to populate all fields. Write in formal legal English.
 
-TITLE: "SERVICE AGREEMENT"
-(Use "MAINTENANCE AGREEMENT" if the services described are maintenance/repair type)
+CONTEXT (use as reference for the type of content and clauses to include — do NOT copy verbatim):
+A maintenance agreement typically covers: the identity of both parties (service provider and client), the specific services to be performed and their frequency, response time commitments, fee structure and payment schedule, contract duration and renewal terms, client obligations (access, notification of issues, clearing obstructions), exclusions and limitations of warranty, liability cap, confidentiality obligations, force majeure / act of God exclusions, termination conditions and notice period, dispute resolution method, and governing law. The agreement should be clear, professional, and enforceable.
 
-HEADER BLOCK:
-This Service Agreement ("Agreement") is entered into on [agreementDate], by and between:
+FORM DATA TO USE:
+- Service Provider: [maintServiceProviderName], [maintServiceProviderAddress], Email: [maintServiceProviderEmail]
+- Client: [maintClientName], [maintClientAddress], Email: [maintClientEmail]
+- Service Type: [maintServiceType]
+- Service Description: [maintServiceDescription]
+- Equipment / Areas Covered: [maintEquipmentAreas]
+- Maintenance Frequency: [maintFrequency]
+- Response Time Commitment: [maintResponseTime]
+- Payment Amount: $[maintPaymentAmount]
+- Billing Frequency: [maintBillingFrequency]
+- Payment Method: [maintPaymentMethod]
+- Late Payment Fee: [maintLatePaymentFee]
+- Reimbursable Expenses: [maintReimbursable]
+- Start Date: [maintStartDate]
+- Contract Duration: [maintContractDuration]
+- Automatic Renewal: [maintAutoRenewal]
+- Termination Notice Period: [maintTerminationNotice]
+- Termination Conditions: [maintTerminationConditions]
+- Confidentiality (NDA): [maintNDA] — Period: [maintConfidentialityPeriod]
+- Liability Limitation: [maintLiabilityLimit] (custom amount if applicable: $[maintCustomLiabilityAmount])
+- Professional Liability Insurance Required: [maintProfessionalInsurance] — Min Coverage: $[maintMinCoverage]
+- Governing Law: State of [maintGoverningLaw]
+- Dispute Resolution: [maintDisputeResolution]
 
-Service Provider: [clientName], [clientAddress] (the "Provider")
-Customer / Client: [contractorName], [contractorAddress] (the "Client")
+MANDATORY CLAUSES TO ALWAYS INCLUDE:
+1. Clear identification of both parties with full name, address, and email.
+2. Detailed scope of services, equipment/areas covered, and service frequency.
+3. Response time commitment for service calls.
+4. Payment terms including amount, billing frequency, method, and late payment consequences.
+5. Contract duration, start date, auto-renewal terms (if applicable), and termination notice requirements.
+6. Immediate termination conditions (include the selected ones from maintTerminationConditions).
+7. Client obligations: must notify provider of defects/issues promptly, provide access, clear obstructions, pay on time.
+8. Force majeure / Act of God exclusion — provider not liable for floods, earthquakes, hurricanes, or other extraordinary events.
+9. Limitation of liability — provider's liability capped per maintLiabilityLimit selection.
+10. Warranty limitation — work by unauthorized third parties voids this agreement.
+11. Confidentiality section if maintNDA is true, covering the information types listed and lasting [maintConfidentialityPeriod] after contract ends.
+12. Professional liability insurance requirement if maintProfessionalInsurance is true.
+13. Dispute resolution method per [maintDisputeResolution].
+14. Governing law: State of [maintGoverningLaw].
+15. Entire agreement clause.
+16. Signature block for both parties (Service Provider and Client), with Name, Signature, and Date lines.
 
-PREAMBLE:
-The Service Provider agrees to provide services to the Client for [contractDurationValue] [contractDurationUnit] from the date of signing, in accordance with the terms and conditions below.
-
-SECTION 1 — SCOPE OF SERVICES:
-The Service Provider agrees to provide the following services:
-[List all services from servicesDescription as bullet points]
-[If projectType is oneTime:] This is a one-time service engagement.
-[If projectType is ongoing:] This is an ongoing service engagement.
-[If additionalTasks:] Additional tasks may be requested by written agreement.
-
-SECTION 2 — SERVICE FEE AND PAYMENT:
-The fee for services provided under this Agreement shall be $[compensationAmount] [currency].
-[Based on compensationModel:]
-- flatFee: Fixed fee of $[compensationAmount] payable [invoiceTiming].
-- hourlyRate: Hourly rate of $[compensationAmount] per hour.
-- retainer: Monthly retainer of $[compensationAmount].
-[If depositAmount provided:] Payment of $[depositAmount] is due upon signing.
-[If lateInterest provided:] Late payment interest: [lateInterest].
-[If paymentDue provided:] Payment due within [paymentDue] of invoice.
-[If isNonRefundable:] Payment is due upon signing. This agreement is non-refundable once services have commenced.
-[If earlyTermination:] Early termination with pro-rata payment for work completed.
-
-SECTION 3 — TERM:
-[Based on durationModel:]
-This Agreement is effective from [agreementDate] for [contractDurationValue] [contractDurationUnit].
-[If autoRenewal:] This Agreement shall automatically renew for successive periods unless either Party provides [cancellationNotice] written notice of non-renewal.
-
-SECTION 4 — PRICING TIERS (if applicable):
-Pricing shall be determined based on the scope of work agreed upon at signing.
-
-SECTION 5 — PROVISIONS OF SERVICES:
-The Client and Service Provider have agreed that services are provided on an as-requested or scheduled basis to fulfill the Provider's obligations as described in Section 1.
-
-SECTION 6 — CLIENT'S OBLIGATIONS:
-The Client must:
-- Promptly notify the Service Provider of any known defects, problems, or complaints
-- Provide reasonable access to the premises or materials necessary for service execution
-- Clear any obstructions that would prevent the Provider from performing the services
-- Make timely payments as agreed
-
-SECTION 7 — ACT OF GOD / FORCE MAJEURE:
-[If forceMajeure:] The Service Provider shall not be liable for damages resulting from flooding, earthquakes, hurricanes, or any other acts of God or circumstances beyond the Provider's reasonable control.
-
-SECTION 8 — LIMITATIONS OF WARRANTY:
-Any work done by a non-certified third party or without authorization from the Provider voids any warranty or service obligations under this Agreement.
-[If warrantyPeriod provided:] The Provider warrants the quality of services for [warrantyPeriod] from the date of completion.
-
-SECTION 9 — LIMITATION OF LIABILITY:
-The Provider's liability shall not exceed the total service fee paid under this Agreement.
-The Provider shall not be liable for indirect, incidental, or consequential damages.
-
-SECTION 10 — INTELLECTUAL PROPERTY:
-[If ipOwnership provided:] All materials, designs, or deliverables produced under this Agreement shall be owned as follows: [based on ipOwnership].
-
-SECTION 11 — CONFIDENTIALITY:
-[If confidentialityDuration / nonExclusivity:] Both parties agree to maintain confidentiality of business information exchanged under this Agreement.
-
-SECTION 12 — TERMINATION:
-Either party may terminate this Agreement with [cancellationNotice] written notice.
-Upon termination, the Client shall pay for all services rendered up to the termination date.
-
-SECTION 13 — GOVERNING LAW:
-This Agreement shall be governed by the laws of the State of [governingLaw].
-
-SECTION 14 — ENTIRE AGREEMENT:
-This Agreement constitutes the entire agreement between the Parties and supersedes all prior discussions or representations.
-
-SIGNATURE BLOCK:
-Service Provider
-Name: [clientName]
-Signature: _______________________
-Date: ___________________________
-
-Customer / Client
-Name: [contractorName]
-Signature: _______________________
-Date: ___________________________
-
-MANDATORY RULES:
-- Client obligations (access, notification) MUST always appear.
-- Force majeure / Act of God exclusion MUST appear.
-- Limitation of liability to fees paid MUST appear.
-- Third-party non-authorized work voiding warranty MUST appear.
-- JURISDICTION: State per governingLaw input."""
+GENERATE THE CONTRACT NOW using professional legal language. Structure it with numbered sections. Do not include placeholder brackets in the final output — replace all variables with the actual values from the form data."""
             },
         ]
 
