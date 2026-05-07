@@ -939,6 +939,114 @@ MANDATORY CLAUSES TO ALWAYS INCLUDE:
 
 GENERATE THE CONTRACT NOW using professional legal language. Structure it with numbered sections. Do not include placeholder brackets in the final output — replace all variables with the actual values from the form data."""
             },
+
+            # -----------------------------------------------------------------
+            # ID 9 — LEGAL SERVICE AGREEMENT
+            # Based on: IACONA LAW, PLLC - Legal Services Agreement template
+            # UI: Workforce & Immigration → Legal Service Agreement
+            # -----------------------------------------------------------------
+            {
+                "id": 9,
+                "category": "immigration",
+                "subcategory": "legal_services",
+                "title": "Legal Service Agreement",
+                "description": "Acuerdo de servicios legales de inmigración entre una firma de abogados y el cliente. Cubre alcance del caso, honorarios, facturación, terminación, comunicación, privacidad y arbitraje.",
+                "rules": """You are generating a professional LEGAL SERVICES AGREEMENT for an immigration law firm. Use the form data provided to populate all fields. Write in formal legal English following the exact structure below.
+
+CONTEXT — Use this as your content and clause reference (this mirrors a real immigration law firm's engagement letter):
+This is a binding attorney-client engagement letter that outlines the scope of representation for an immigration matter, the fee structure, billing terms, late payment consequences, termination rights, document retention, communication standards, arbitration clause, privacy policy, attorney-client privilege, and entire agreement clause.
+
+DOCUMENT STRUCTURE — Generate the contract with EXACTLY these sections:
+
+HEADER:
+- Title: LEGAL SERVICES AGREEMENT (bold, centered)
+- "Dear [clientName]"
+- "Re: Engagement for Legal Services"
+- Opening paragraph: "Thank you for choosing [contractorName] ("the Firm") to represent you on your immigration matter. The purpose of this engagement letter ("Agreement") is to outline the nature of the engagement and our respective responsibilities and expectations under this Agreement."
+
+1. SCOPE OF THE ENGAGEMENT:
+- State that representation is limited to: [lsCaseTypes joined as list]
+- Explicitly state it does NOT include: any other actual or potential litigation, appeals, arrangements, motions, interview appearances, court reviews, dealing with deportation or exclusion grounds or proceedings, extensions of nonimmigrant visas and other services.
+- Also exclude the following services specifically selected: [lsExcludedServices]
+- [If lsAdjustmentOfStatus is true: "Adjustment of Status, either concurrent or separate in any future time, are not part of the legal fee, it will have an additional fee to be discussed with our Firm at the time at which you will chose to file for it."]
+- [If lsConsularProcessing is true: "Consular Processing is not part or included in this agreement."]
+- State that work will be performed by [contractorName], Lead Attorney. Representation may be expanded if the parties separately agree in writing.
+- After the engagement concludes with a final decision from USCIS, the Firm has no further obligation to advise.
+- Add a paragraph about the Firm doing its best but not guaranteeing outcomes due to USCIS discretionary power. End with: "Therefore, we have not made, and cannot make, any guarantees or promises concerning the outcome of this matter."
+- Add scope description if provided: [lsScopeDescription]
+
+2. FEES:
+- "The legal fee applicable to this engagement will correspond to the service package and payment option selected by the Client."
+- Total Engagement Fee: $[lsTotalEngagementFee]
+- Payment Plan selected: [lsPaymentPlan]
+- [If lsSpanishTranslations: "This legal fee includes translations from Spanish to English of those documents required to be submitted or recommended to be submitted with the case. Any additional translations of documents not in Spanish shall be billed separately to the Client."]
+- [If lsNonRefundable: "It is expressly understood that this fixed engagement fee is based upon the scope of engagement as defined above. And that all fixed fee payments received are non-refundable and earned upon receipt."]
+- [If lsGovFilingFeesSeparate: "In addition to our basic fixed legal fee, we will be entitled to advance payment or reimbursement for costs and expenses incurred in performing services, such as government filing fees that are required by USCIS to handle this petition."]
+- Add paragraph about timely document submission being essential; delays by Client may incur additional fees.
+
+3. BILLING:
+- "For your convenience, we have extended a payment plan for the client to pay the engagement fee which was due and owed the day of the signing of this legal services agreement."
+- "Payment is due according with the payment schedule described above."
+- Add in bold/italic: "Filings will not be made until our invoice has been paid according with the payment schedule, so be certain to send the fees to us prior to your desired filing date."
+
+4. LATE PAYMENTS:
+- "Any payment not received within [lsGracePeriodDays] days from the due date stated on the invoice will incur a late fee of $[lsLateFeeAmount]."
+- "This late fee will be charged for each month the payment remains outstanding, with an additional $[lsLateFeeAmount] fee accumulating for every subsequent month of non-payment until the full balance is settled."
+
+5. TERMINATION OF THE REPRESENTATION:
+- [If lsClientMayTerminate: "You shall have the right at any time to terminate our services and representation under this Agreement, upon written notice to the Firm."]
+- [If lsFullFeesOwed: "Such termination, however, shall not relieve you of the obligation to pay the full engagement fee which was due and owed the day of the signing of this legal services Agreement. Please note that this might include fees for services rendered, even if not completed, translations, letter drafting and any other legal services or expenses related to your matter. Any payments that you have made already towards your case will NOT be refunded."]
+- [If lsFirmMayTerminate: "We also have the right to terminate the representation for good cause. Good cause to withdraw includes, but is not limited to: (a) your failure to honor the terms of the engagement, (b) your failure to cooperate or follow our advice on a material matter, (c) circumstances where our continued representation would be unlawful or unethical, or (d) any other reason permitted by the applicable ethics rules."]
+- Add: In the event of firm termination, the firm will inform the Client in writing and take steps to protect Client's interests.
+
+6. CLIENT DOCUMENTS:
+- "During the engagement, we will maintain all documents relevant to this representation."
+- "At the conclusion of this engagement, we will retain your record documents for a period of [lsDocumentRetentionYears] years unless you request that they be returned to you. If you have not requested possession of the file or any of its contents at the end of [lsDocumentRetentionYears] years, the file will be destroyed in accordance with our record retention program."
+
+7. REASONABLE COMMUNICATION CLAUSE:
+- [If lsReasonableCommunication: Include the full reasonable communication clause: "The Client agrees to maintain communication with the Firm that is purposeful, necessary, and directly related to the case's progression and legal strategy. Both case-related and non-case-related communications should be conducted with a focus on efficiency, relevance, and respect for the Attorney's responsibilities towards all clients and the legal practice. Therefore, the Client commits to engaging in communications that are deemed reasonable in frequency and nature by the Attorney. Should the Attorney determine that the volume or nature of communication becomes excessive, the Attorney reserves the right to request a modification in communication practices and, if necessary, to implement measures to ensure that communications remain constructive and within reasonable bounds."]
+- [If lsRespectfulConduct: Include: "Respectful Communication and Conduct Clause: The Client hereby commits to uphold the highest standards of respect, professionalism, and courtesy in all forms of communication and interaction with the Attorney, as well as any staff, associates, or representatives of the law firm. Disrespectful conduct, abusive language, harassment, or any form of discrimination against the Attorney or any member of the law firm's staff will not be tolerated under any circumstances."]
+- [If lsElectronicCommunication: Include: "Unless you specifically direct us otherwise, we may use mobile phones, email, and facsimile machines in the course of this engagement. Our email and facsimile transmissions may not be encrypted so the use of such forms of communication under current technologies may place confidential or privileged information at risk. By signing below, you consent to our use of these forms of communication."]
+
+8. ADDITIONAL CLIENT RESPONSIBILITIES:
+- Client agrees to communicate and provide complete, timely, and accurate information.
+- Client will timely notify the Firm of any changes in personal information.
+- Add: "Unreasonable delays in client sending complete information might generate re-processing, delays, and additional cost to the client."
+
+9. TIME FRAME:
+- "The estimated time frame for the preparation of your application will be determined according to the package selected by the client."
+- Add in bold: "The time will start counting from the date on which ALL the documents and information required have been uploaded by the client to the assigned CLIENT PORTAL and received by our firm."
+
+10. ARBITRATION:
+- [If lsDisputeResolution is "Binding Arbitration (AAA)": "Client and Firm agree that any dispute, controversy, or claim arising out of, or relating to, this Agreement or the breach thereof shall be resolved by binding, final arbitration between the parties conducted in [lsArbitrationLocation if provided, else "Miami-Dade County, Florida"], in accordance with the rules of the American Arbitration Association ("AAA"). The award of the Arbitrator shall be conclusive and binding upon both parties and judgment upon the award may be entered in any court of competent jurisdiction."]
+- [If lsDisputeResolution is "Mediation": "Any dispute arising under this Agreement shall be resolved through mediation before a mutually agreed mediator."]
+- [If lsDisputeResolution is "Litigation": "Any dispute arising under this Agreement shall be subject to the exclusive jurisdiction of the courts of the State of [lsGoverningLaw]."]
+
+11. PRIVACY:
+- [If lsPrivacyClause: "In the course of providing legal services to you, we may receive nonpublic personal information about you. All such information will be held in strict confidence and will not be disseminated to any person or entity outside this Firm without your consent, unless such disclosure is required under the applicable law."]
+- [If lsCloudStorageConsent: "We may store some or all of your files on a variety of platforms, including third-party cloud-based servers. Although we take every precaution to make sure these servers are encrypted and secure, there still is a risk that your confidential or privileged information may be disclosed. By signing below, you consent to our use of such storage services."]
+
+12. ATTORNEY-CLIENT PRIVILEGE:
+- [If lsAttorneyClientPrivilege: "Generally, information we receive from you is subject to the attorney-client privilege. However, we may be under an independent ethical duty to reveal privileged information if (a) it involves the commission of illegal or fraudulent acts that are committed during this engagement, (b) it involves the intent to commit a crime, or (c) we are required to disclose the information by law or court order."]
+
+13. ENTIRE AGREEMENT:
+- [If lsEntireAgreementClause: "This Agreement constitutes the sole and entire agreement between us with respect to the subject matter of this Agreement, and supersedes all prior and contemporaneous understandings, agreements, representations, and warranties, both written and oral, with respect to the subject matter."]
+- Governing Law: This Agreement shall be governed by and construed in accordance with the laws of the State of [lsGoverningLaw].
+
+CLOSING:
+- "We appreciate the opportunity to be of service and look forward to working with you."
+- "Very truly yours,"
+- Signature block for Law Firm/Attorney: Name, Title, Firm name
+- "ACCEPTED AND AGREED:"
+- Signature block for Client: Name [clientName], Signature line, Date line
+
+MANDATORY RULES:
+- Replace ALL bracketed variables with actual form data values. Never leave placeholders.
+- Use formal legal English throughout.
+- Section headings should be bold and numbered.
+- The document should read as a professional attorney engagement letter, not a generic contract template.
+- Language: Respond in English unless inputs indicate Spanish."""
+            },
         ]
 
         # UPSERT logic: insert if not exists, update rules if already exists
