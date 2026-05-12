@@ -11,15 +11,15 @@ class Settings(BaseSettings):
     
     # Security
     FRONTEND_URL: str = "http://localhost:5173"
-    ALLOWED_ORIGINS: str = "http://localhost:5173,https://go-contract-frontend.vercel.app"
-    ALLOWED_ORIGIN_REGEX: Optional[str] = r"https://.*\.vercel\.app"
+    ALLOWED_ORIGINS: str = "http://localhost:5173,https://go-contract-frontend.vercel.app,https://app.gocontract.us,https://www.gocontract.us"
+    ALLOWED_ORIGIN_REGEX: Optional[str] = r"https://(.*\.vercel\.app|.*\.gocontract\.us)"
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def parse_allowed_origins(cls, v):
         if isinstance(v, list):
             return ",".join(v)
-        return v or "http://localhost:5173,https://go-contract-frontend.vercel.app"
+        return v or "http://localhost:5173,https://go-contract-frontend.vercel.app,https://app.gocontract.us"
 
     @property
     def allowed_origins_list(self) -> list[str]:
