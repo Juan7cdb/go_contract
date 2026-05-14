@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 import io
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, nullslast
 
 from app.dependencies.auth import get_current_user
 from app.models import User, Contract, TemplateContract, Agent
@@ -254,7 +254,7 @@ async def list_contracts(
         total = total_result.scalar() or 0
         
         # Pagination
-        query = query.order_by(Contract.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+        query = query.order_by(nullslast(Contract.created_at.desc())).offset((page - 1) * per_page).limit(per_page)
         result = await db.execute(query)
         contracts = result.scalars().all()
         
