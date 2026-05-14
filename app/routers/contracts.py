@@ -1,6 +1,7 @@
 """Contracts router for contract generation and CRUD operations."""
 import logging
 import html
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
@@ -188,7 +189,8 @@ async def create_contract(
             description=contract_data.description,
             contract_url=contract_url or contract_data.contract_url,
             generated_content=contract_data.generated_content,
-            form_data=contract_data.form_data or {}
+            form_data=contract_data.form_data or {},
+            created_at=datetime.utcnow()
         )
         
         # Deduct credit
