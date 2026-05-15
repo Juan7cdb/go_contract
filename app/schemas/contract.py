@@ -37,6 +37,7 @@ class ContractResponse(BaseModel):
     generated_content: Optional[str] = None
     form_data: Optional[dict] = None
     created_at: Optional[datetime] = None
+    credits_remaining: Optional[int] = None
 
     class Config:
         from_attributes = True

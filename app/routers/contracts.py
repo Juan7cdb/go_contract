@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Contracts"])
 
 
+
 def sanitize_inputs(inputs: dict) -> dict:
     """Sanitize user inputs to prevent prompt injection."""
     sanitized = {}
@@ -195,12 +196,16 @@ async def create_contract(
         
         # Deduct credit
         current_user.credits_remaining -= 1
-        
+
         db.add(new_contract)
         db.add(current_user)
         await db.flush()
-        
-        logger.info(f"Contract saved for user {current_user.id}: {new_contract.title}")
+        # Commit explicitly so the credit deduction is visible to subsequent requests
+        # (the get_db middleware commits after the response, creating a race condition)
+        await db.commit()
+
+        credits_after = current_user.credits_remaining
+        logger.info(f"Contract saved for user {current_user.id}: {new_contract.title}. Credits remaining: {credits_after}")
         return ContractResponse(
             id=str(new_contract.id),
             user_id=str(current_user.id),
@@ -211,7 +216,8 @@ async def create_contract(
             contract_url=new_contract.contract_url or "",
             generated_content=new_contract.generated_content,
             form_data=new_contract.form_data,
-            created_at=new_contract.created_at
+            created_at=new_contract.created_at,
+            credits_remaining=credits_after
         )
         
     except HTTPException:

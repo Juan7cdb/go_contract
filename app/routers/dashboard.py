@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -8,6 +9,7 @@ from app.models import User, Contract, ContractDraft
 from app.core.database import get_db
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Dashboard"])
 
 class DashboardStats(BaseModel):
