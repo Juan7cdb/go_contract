@@ -1,4 +1,6 @@
 """AI Service for contract generation and agent-based chat using OpenAI SDK."""
+from __future__ import annotations
+
 import openai
 from app.core.config import settings
 from app.schemas.ai import ChatMessage, Attachment

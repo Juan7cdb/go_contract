@@ -7,9 +7,14 @@ from datetime import datetime
 class PlanBase(BaseModel):
     """Base plan schema."""
     title: str = Field(..., max_length=100)
-    description: str
+    description: Optional[str] = None
     price: float = Field(..., ge=0)
-    time_subscription: str = Field(..., max_length=50, description="Subscription period, e.g. 'monthly', 'yearly'")
+    time_subscription: Optional[str] = Field(None, max_length=50, description="Subscription period, e.g. 'monthly', 'yearly'")
+    contracts_included: Optional[int] = None
+    plan_type: Optional[str] = None
+    stripe_price_id: Optional[str] = None
+    currency: Optional[str] = "usd"
+    is_active: Optional[bool] = True
 
 
 class PlanCreate(PlanBase):

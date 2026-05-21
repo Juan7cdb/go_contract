@@ -26,10 +26,15 @@ async def list_plans(db: AsyncSession = Depends(get_db)):
                 PlanResponse(
                     id=str(p.id),
                     title=p.title,
+                    description=p.description,
                     price=p.price,
                     time_subscription=p.time_subscription,
                     contracts_included=p.contracts_included,
-                    created_at=p.created_at
+                    plan_type=p.plan_type,
+                    stripe_price_id=p.stripe_price_id,
+                    currency=p.currency,
+                    is_active=p.is_active,
+                    created_at=p.created_at,
                 ) for p in plans
             ],
             total=len(plans)

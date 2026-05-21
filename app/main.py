@@ -90,6 +90,7 @@ from app.routers import (
     chat,           # General chat with AI (non-agent)
     drafts,         # Contract drafts: save, list, get, update, delete
     dashboard,      # Dashboard: user metrics and stats
+    billing,        # Billing: Stripe Checkout / Portal / Payments
 )
 
 # Authentication & User Management
@@ -109,3 +110,6 @@ app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard")
 # AI Features
 app.include_router(agents.router, prefix=f"{settings.API_V1_STR}/agents")
 app.include_router(chat.router, prefix=f"{settings.API_V1_STR}/chat")
+
+# Billing (Stripe). Router defines its own `/billing` prefix internally.
+app.include_router(billing.router, prefix=settings.API_V1_STR)

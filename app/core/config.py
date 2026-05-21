@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from typing import Optional
 
 class Settings(BaseSettings):
@@ -53,6 +53,27 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 20
+
+    # Stripe
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = ""
+    STRIPE_API_VERSION: str = "2024-11-20.acacia"
+    # Stripe redirect URLs. If empty, defaults are derived from FRONTEND_URL
+    # in the post-init validator below.
+    STRIPE_SUCCESS_URL: str = ""
+    STRIPE_CANCEL_URL: str = ""
+
+    @model_validator(mode="after")
+    def _set_stripe_default_urls(self):
+        if not self.STRIPE_SUCCESS_URL:
+            self.STRIPE_SUCCESS_URL = (
+                f"{self.FRONTEND_URL}/billing/success"
+                "?session_id={CHECKOUT_SESSION_ID}"
+            )
+        if not self.STRIPE_CANCEL_URL:
+            self.STRIPE_CANCEL_URL = f"{self.FRONTEND_URL}/billing/cancel"
+        return self
 
     model_config = SettingsConfigDict(
         env_file=".env",

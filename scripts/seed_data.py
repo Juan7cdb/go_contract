@@ -14,6 +14,10 @@ async def seed_data():
     print("Starting database seeding...")
     async with async_session_maker() as db:
         # 1. Seed Plans
+        # NOTE: `stripe_price_id` for paid plans is a placeholder until the
+        # operator runs `scripts/bootstrap_stripe_products.py` against their
+        # Stripe Test-mode account, then pastes the real `price_xxx` IDs here
+        # and re-runs this seed (UPSERT updates the row in place).
         plans_data = [
             {
                 "id": 1,
@@ -21,7 +25,12 @@ async def seed_data():
                 "description": "Prueba básica para redactar tus primeros contratos.",
                 "price": 0.0,
                 "contracts_included": 2,
-                "time_subscription": "lifetime"
+                "time_subscription": "lifetime",
+                "plan_type": "subscription",
+                "currency": "usd",
+                "is_active": True,
+                "stripe_price_id": None,
+                "stripe_product_id": None,
             },
             {
                 "id": 2,
@@ -29,7 +38,12 @@ async def seed_data():
                 "description": "Ideal para profesionales e independientes.",
                 "price": 29.99,
                 "contracts_included": 15,
-                "time_subscription": "monthly"
+                "time_subscription": "monthly",
+                "plan_type": "subscription",
+                "currency": "usd",
+                "is_active": True,
+                "stripe_price_id": "price_1TZKKkRaNX53Ajh7tWGd5EmD",
+                "stripe_product_id": None,
             },
             {
                 "id": 3,
@@ -37,16 +51,69 @@ async def seed_data():
                 "description": "Contratos ilimitados para grandes empresas.",
                 "price": 99.99,
                 "contracts_included": 1000,
-                "time_subscription": "monthly"
-            }
+                "time_subscription": "monthly",
+                "plan_type": "subscription",
+                "currency": "usd",
+                "is_active": True,
+                "stripe_price_id": "price_1TZKKlRaNX53Ajh7Te0vhy9m",
+                "stripe_product_id": None,
+            },
+            {
+                "id": 4,
+                "title": "Credit Pack Small",
+                "description": "10 créditos one-time para uso flexible.",
+                "price": 9.99,
+                "contracts_included": 10,
+                "time_subscription": "one_time",
+                "plan_type": "credit_pack",
+                "currency": "usd",
+                "is_active": True,
+                "stripe_price_id": "price_1TZKKmRaNX53Ajh7Iyq2AURp",
+                "stripe_product_id": None,
+            },
+            {
+                "id": 5,
+                "title": "Credit Pack Medium",
+                "description": "50 créditos one-time para uso flexible.",
+                "price": 29.99,
+                "contracts_included": 50,
+                "time_subscription": "one_time",
+                "plan_type": "credit_pack",
+                "currency": "usd",
+                "is_active": True,
+                "stripe_price_id": "price_1TZKKoRaNX53Ajh77BZyoMJI",
+                "stripe_product_id": None,
+            },
+            {
+                "id": 6,
+                "title": "Credit Pack Large",
+                "description": "200 créditos one-time para uso flexible.",
+                "price": 79.99,
+                "contracts_included": 200,
+                "time_subscription": "one_time",
+                "plan_type": "credit_pack",
+                "currency": "usd",
+                "is_active": True,
+                "stripe_price_id": "price_1TZKKqRaNX53Ajh7IaIEalQ6",
+                "stripe_product_id": None,
+            },
         ]
 
         for p_data in plans_data:
             result = await db.execute(select(Plan).where(Plan.id == p_data["id"]))
-            if not result.scalar_one_or_none():
+            existing = result.scalar_one_or_none()
+            if existing is None:
                 plan = Plan(**p_data)
                 db.add(plan)
                 print(f"Added plan: {p_data['title']}")
+            else:
+                # UPSERT: keep id stable, refresh every other column so the seed
+                # is the source of truth for pricing / Stripe identifiers.
+                for key, value in p_data.items():
+                    if key == "id":
+                        continue
+                    setattr(existing, key, value)
+                print(f"Updated plan: {p_data['title']}")
 
         # =====================================================================
         # 2. Seed / Update Template Contracts

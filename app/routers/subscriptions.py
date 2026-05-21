@@ -70,14 +70,24 @@ async def get_current_subscription(
         )
 
 
-@router.post("/", response_model=SubscriptionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=SubscriptionResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
 async def create_subscription(
     subscription_data: SubscriptionCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Create a new subscription and update user credits.
+    DEPRECATED: use POST /billing/checkout-session for paid plans.
+
+    Kept hidden from OpenAPI for any legacy callers. New code should not
+    invoke this endpoint — subscription rows are created by the Stripe
+    webhook handler (`checkout.session.completed` →
+    `customer.subscription.created`) in `app/routers/billing.py`.
     """
     try:
         plan_id = int(subscription_data.plan_id)
