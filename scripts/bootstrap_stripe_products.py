@@ -1,10 +1,11 @@
 """Idempotently create the GoContract Products + Prices in Stripe.
 
 Run this once (per Stripe account / environment) to populate the
-Test-mode (or Live-mode) Stripe Dashboard with the 5 paid offerings:
+Stripe Dashboard with the 3 monthly subscription tiers:
 
-  - 2 subscriptions  : Pro Monthly, Enterprise Monthly
-  - 3 one-time packs : Credit Pack Small / Medium / Large
+  - Essentials   ($9.99/mo,  5 credits)
+  - Professional ($19.99/mo, 10 credits)
+  - Scale        ($49.99/mo, 50 credits)
 
 The script searches existing Products by metadata key `goc_plan_id` to
 avoid creating duplicates on re-run. At the end it prints a table
@@ -38,54 +39,34 @@ from app.services.stripe_service import stripe  # noqa: E402  (intentional)
 # ---------------------------------------------------------------------------
 PRODUCTS = [
     {
-        "plan_id": 2,
-        "name": "Pro Monthly",
-        "description": "Pro plan — 15 contracts per month.",
-        "amount_cents": 2999,  # $29.99
+        "plan_id": 1,
+        "name": "Essentials",
+        "description": "Plan inicial. 5 contratos al mes.",
+        "amount_cents": 999,  # $9.99
         "currency": "usd",
         "recurring": {"interval": "month"},
-        "credits_granted": 15,
+        "credits_granted": 5,
+        "plan_type": "subscription",
+    },
+    {
+        "plan_id": 2,
+        "name": "Professional",
+        "description": "Ideal para profesionales independientes. 10 contratos al mes.",
+        "amount_cents": 1999,  # $19.99
+        "currency": "usd",
+        "recurring": {"interval": "month"},
+        "credits_granted": 10,
         "plan_type": "subscription",
     },
     {
         "plan_id": 3,
-        "name": "Enterprise Monthly",
-        "description": "Enterprise plan — 1000 contracts per month.",
-        "amount_cents": 9999,  # $99.99
+        "name": "Scale",
+        "description": "Para equipos y empresas. 50 contratos al mes.",
+        "amount_cents": 4999,  # $49.99
         "currency": "usd",
         "recurring": {"interval": "month"},
-        "credits_granted": 1000,
-        "plan_type": "subscription",
-    },
-    {
-        "plan_id": 4,
-        "name": "Credit Pack Small",
-        "description": "10 one-time credits.",
-        "amount_cents": 999,  # $9.99
-        "currency": "usd",
-        "recurring": None,
-        "credits_granted": 10,
-        "plan_type": "credit_pack",
-    },
-    {
-        "plan_id": 5,
-        "name": "Credit Pack Medium",
-        "description": "50 one-time credits.",
-        "amount_cents": 2999,  # $29.99
-        "currency": "usd",
-        "recurring": None,
         "credits_granted": 50,
-        "plan_type": "credit_pack",
-    },
-    {
-        "plan_id": 6,
-        "name": "Credit Pack Large",
-        "description": "200 one-time credits.",
-        "amount_cents": 7999,  # $79.99
-        "currency": "usd",
-        "recurring": None,
-        "credits_granted": 200,
-        "plan_type": "credit_pack",
+        "plan_type": "subscription",
     },
 ]
 

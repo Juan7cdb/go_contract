@@ -13,7 +13,7 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     first_name: Mapped[Optional[str]] = mapped_column(String(100))
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
-    credits_remaining: Mapped[int] = mapped_column(Integer, default=5)
+    credits_remaining: Mapped[int] = mapped_column(Integer, default=0)
     preferences: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False, server_default='{}')
     reset_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     reset_token_expiry: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
