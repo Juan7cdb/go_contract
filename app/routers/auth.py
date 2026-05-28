@@ -162,7 +162,7 @@ async def forgot_password(request: PasswordResetRequest, db: AsyncSession = Depe
                 await send_reset_email(user.email, token)
                 logger.info(f"Reset email dispatched to {user.email}")
             except Exception as email_err:
-                logger.error(f"Resend failed for {user.email}: {email_err}", exc_info=True)
+                logger.error(f"Failed to send reset email to {user.email}: {email_err}", exc_info=True)
 
         return AuthResponse(message="If an account exists, a password reset email has been sent")
     except HTTPException:

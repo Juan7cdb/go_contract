@@ -50,17 +50,26 @@ def _send_via_resend(to_email: str, reset_url: str) -> None:
         "subject": "Reset your GoContract password",
         "html": _RESET_HTML.format(reset_url=reset_url),
     }
-    resend.Emails.send(params)
+    response = resend.Emails.send(params)
+    logger.info(f"Resend response for {to_email}: {response}")
 
 
 async def send_reset_email(to_email: str, token: str) -> None:
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
 
+    if settings.RESEND_API_KEY:
+        logger.info(f"Sending reset email via Resend to {to_email} (from={settings.FROM_EMAIL})")
+        try:
+            _send_via_resend(to_email, reset_url)
+            logger.info(f"Resend accepted reset email for {to_email}")
+            return
+        except Exception as e:
+            logger.error(f"Resend send failed for {to_email}: {e}", exc_info=True)
+            raise
+
     if settings.GMAIL_USER and settings.GMAIL_APP_PASSWORD:
         logger.info(f"Sending reset email via Gmail to {to_email}")
         _send_via_gmail(to_email, reset_url)
-    elif settings.RESEND_API_KEY:
-        logger.info(f"Sending reset email via Resend to {to_email}")
-        _send_via_resend(to_email, reset_url)
-    else:
-        raise RuntimeError("No email provider configured. Set GMAIL_USER + GMAIL_APP_PASSWORD or RESEND_API_KEY.")
+        return
+
+    raise RuntimeError("No email provider configured. Set RESEND_API_KEY or GMAIL_USER + GMAIL_APP_PASSWORD.")
