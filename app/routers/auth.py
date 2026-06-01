@@ -14,6 +14,7 @@ from app.core.security import (
     create_access_token
 )
 from app.models import User
+from app.services.storage_service import StorageService, get_storage_service
 from app.schemas.auth import (
     UserRegister,
     UserLogin,
@@ -235,7 +236,10 @@ async def update_password(
 
 
 @router.get("/me", summary="Obtener información del usuario actual")
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
+async def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+    storage: StorageService = Depends(get_storage_service),
+):
     """
     Get current user profile.
     """
@@ -244,6 +248,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
+        "avatar_url": storage.generate_avatar_url(current_user.avatar_key),
         "credits_remaining": current_user.credits_remaining,
         "created_at": current_user.created_at
     }

@@ -29,6 +29,7 @@ class ProfileResponse(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: str
+    avatar_url: Optional[str] = None
     preferences: Dict[str, Any] = Field(default_factory=dict)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

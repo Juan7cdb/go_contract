@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 20
 
+    # Object Storage (S3-compatible, Railway portable-trunk)
+    AWS_ENDPOINT_URL: str = ""
+    AWS_DEFAULT_REGION: str = "auto"
+    AWS_S3_BUCKET_NAME: str = ""
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AVATAR_URL_TTL_SECONDS: int = 3600
+
     # Stripe
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
