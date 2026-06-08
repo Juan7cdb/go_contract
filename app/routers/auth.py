@@ -250,5 +250,6 @@ async def get_current_user_info(
         "last_name": current_user.last_name,
         "avatar_url": storage.generate_avatar_url(current_user.avatar_key),
         "credits_remaining": current_user.credits_remaining,
+        "preferences": current_user.preferences or {},
         "created_at": current_user.created_at
     }

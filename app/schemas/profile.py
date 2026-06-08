@@ -1,7 +1,21 @@
 """Profile schemas matching Supabase profiles table."""
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, Dict, Any
+from typing import Optional
 from datetime import datetime
+
+
+class UserPreferences(BaseModel):
+    """Typed schema for user preferences stored in `users.preferences` JSON column.
+
+    All fields are optional to remain retro-compatible with existing rows that
+    may have missing or extra keys. Field names use camelCase to align with the
+    payload the frontend sends today (avoids a name-translation layer).
+    """
+    language: Optional[str] = None
+    timezone: Optional[str] = None
+    autoSave: Optional[bool] = None
+    aiSuggestions: Optional[bool] = None
+    twoFactor: Optional[bool] = None
 
 
 class ProfileBase(BaseModel):
@@ -20,7 +34,7 @@ class ProfileUpdate(BaseModel):
     """Schema for updating a profile - all fields optional."""
     first_name: Optional[str] = Field(None, max_length=100)
     last_name: Optional[str] = Field(None, max_length=100)
-    preferences: Optional[Dict[str, Any]] = None
+    preferences: Optional[UserPreferences] = None
 
 
 class ProfileResponse(BaseModel):
@@ -30,7 +44,7 @@ class ProfileResponse(BaseModel):
     last_name: Optional[str] = None
     email: str
     avatar_url: Optional[str] = None
-    preferences: Dict[str, Any] = Field(default_factory=dict)
+    preferences: UserPreferences = Field(default_factory=UserPreferences)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

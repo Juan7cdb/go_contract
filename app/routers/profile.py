@@ -54,7 +54,8 @@ async def update_profile(
             current_user.last_name = profile_data.last_name
         if profile_data.preferences is not None:
             current_prefs = current_user.preferences or {}
-            current_user.preferences = {**current_prefs, **profile_data.preferences}
+            prefs_dict = profile_data.preferences.model_dump(exclude_none=True)
+            current_user.preferences = {**current_prefs, **prefs_dict}
 
         db.add(current_user)
 
