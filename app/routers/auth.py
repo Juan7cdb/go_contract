@@ -55,7 +55,12 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
             hashed_password=get_password_hash(user_data.password),
             first_name=user_data.first_name,
             last_name=user_data.last_name,
-            credits_remaining=5  # Default free credits
+            credits_remaining=5,  # Default free credits
+            preferences={
+                "autoSave": True,
+                "aiSuggestions": False,
+                "twoFactor": True,
+            },
         )
         
         db.add(new_user)
