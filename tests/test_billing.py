@@ -384,3 +384,117 @@ def test_charge_refunded_clamps_to_zero(
     assert payment.status == "refunded"
     # 3 - 10 → clamp to 0.
     assert user.credits_remaining == 0
+
+
+# --------------------------------------------------------------------------- #
+# Feature 1: POST /api/v1/billing/cancel-subscription                         #
+# --------------------------------------------------------------------------- #
+
+
+from app.dependencies.auth import get_current_user
+
+
+def _override_user(user: User):
+    """Helper to override get_current_user for authenticated endpoints."""
+    async def _inner():
+        return user
+    return _inner
+
+
+def test_cancel_subscription_returns_404_when_no_active_sub(
+    client: TestClient, fake_session: FakeAsyncSession
+):
+    """No subscription row → 404."""
+    user = User(id=50, email="nosub@example.com", hashed_password="x", credits_remaining=0)
+    fake_session.seed(User, user)
+    # No Subscription seeded; scalar() returns None by default.
+
+    app.dependency_overrides[get_current_user] = _override_user(user)
+    try:
+        resp = client.post("/api/v1/billing/cancel-subscription")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 404
+    assert "no active subscription" in resp.json()["detail"].lower()
+
+
+def test_cancel_subscription_happy_path(
+    client: TestClient, fake_session: FakeAsyncSession
+):
+    """Active sub → calls stripe.Subscription.modify and updates local row."""
+    user = User(id=51, email="ok@example.com", hashed_password="x", credits_remaining=10)
+    sub = Subscription(
+        id=601,
+        user_id=51,
+        plan_id=2,
+        start_subscription=datetime.utcnow(),
+        end_subscription=datetime.utcnow(),
+        stripe_subscription_id="sub_cancel_ok",
+        status="active",
+        cancel_at_period_end=False,
+    )
+    fake_session.seed(User, user)
+    fake_session.seed(Subscription, sub)
+    fake_session.set_scalar("subscriptions.user_id", sub)
+
+    modified_sub = SimpleNamespace(
+        id="sub_cancel_ok",
+        status="active",
+        cancel_at_period_end=True,
+        current_period_end=1702592000,
+    )
+
+    app.dependency_overrides[get_current_user] = _override_user(user)
+    try:
+        with patch.object(
+            billing_router.stripe.Subscription,
+            "modify",
+            return_value=modified_sub,
+        ) as mock_modify:
+            resp = client.post("/api/v1/billing/cancel-subscription")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["cancel_at_period_end"] is True
+    assert body["stripe_subscription_id"] == "sub_cancel_ok"
+    mock_modify.assert_called_once_with("sub_cancel_ok", cancel_at_period_end=True)
+    # Local row reflects the change immediately (don't wait for webhook).
+    assert sub.cancel_at_period_end is True
+
+
+def test_cancel_subscription_stripe_error_returns_502(
+    client: TestClient, fake_session: FakeAsyncSession
+):
+    """If stripe.Subscription.modify raises, endpoint returns 502."""
+    user = User(id=52, email="err@example.com", hashed_password="x", credits_remaining=0)
+    sub = Subscription(
+        id=602,
+        user_id=52,
+        plan_id=2,
+        start_subscription=datetime.utcnow(),
+        end_subscription=datetime.utcnow(),
+        stripe_subscription_id="sub_err_1",
+        status="active",
+        cancel_at_period_end=False,
+    )
+    fake_session.seed(User, user)
+    fake_session.seed(Subscription, sub)
+    fake_session.set_scalar("subscriptions.user_id", sub)
+
+    app.dependency_overrides[get_current_user] = _override_user(user)
+    try:
+        with patch.object(
+            billing_router.stripe.Subscription,
+            "modify",
+            side_effect=billing_router.stripe.error.APIConnectionError("boom"),
+        ):
+            resp = client.post("/api/v1/billing/cancel-subscription")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 502
+    # DB row was NOT modified.
+    assert sub.cancel_at_period_end is False

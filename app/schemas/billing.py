@@ -53,3 +53,20 @@ class PaymentResponse(BaseModel):
     created_at: datetime
     plan_id: Optional[int] = None
     stripe_invoice_id: Optional[str] = None
+
+
+class SubscriptionCancellationResponse(BaseModel):
+    """Response from POST /billing/cancel-subscription and /resume-subscription.
+
+    Returns the post-change state of the Subscription row so the client
+    can update its local view immediately, without waiting for the
+    `customer.subscription.updated` webhook to land.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    status: str
+    cancel_at_period_end: bool
+    current_period_end: Optional[datetime] = None
+    stripe_subscription_id: Optional[str] = None

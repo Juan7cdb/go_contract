@@ -17,6 +17,7 @@ Source of truth: `thoughts/juandavid/plans/2026-05-20-stripe-monetization-plan.m
 import json
 import logging
 import time
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
@@ -25,12 +26,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.dependencies.auth import get_current_user
-from app.models import Payment, Plan, StripeEvent, User
+from app.models import Payment, Plan, StripeEvent, Subscription, User
 from app.schemas.billing import (
     CheckoutSessionRequest,
     CheckoutSessionResponse,
     PaymentResponse,
     PortalSessionResponse,
+    SubscriptionCancellationResponse,
 )
 from app.services import billing_handlers
 from app.services.stripe_service import get_or_create_customer, stripe
@@ -258,6 +260,71 @@ async def list_payments(
         .offset(offset)
     )
     return list(result.all())
+
+
+@router.post("/cancel-subscription", response_model=SubscriptionCancellationResponse)
+async def cancel_subscription(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Subscription:
+    """Mark the user's active Stripe subscription to cancel at period end.
+
+    Idempotent from the user's perspective: calling twice keeps the flag
+    set. The local DB row is updated immediately so the UI doesn't have
+    to wait for the `customer.subscription.updated` webhook — the
+    webhook will land afterwards and overwrite with the same value.
+    """
+    sub = await db.scalar(
+        select(Subscription)
+        .where(
+            Subscription.user_id == current_user.id,
+            Subscription.stripe_subscription_id.is_not(None),
+            Subscription.status.in_(("active", "past_due", "trialing")),
+        )
+        .order_by(Subscription.id.desc())
+    )
+    if sub is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active subscription found",
+        )
+
+    try:
+        modified = stripe.Subscription.modify(
+            sub.stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+    except stripe.error.StripeError as exc:
+        logger.error(
+            "stripe_cancel_subscription_failed",
+            extra={
+                "user_id": current_user.id,
+                "sub_id": sub.id,
+                "error": str(exc),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to cancel subscription in Stripe",
+        ) from exc
+
+    sub.cancel_at_period_end = bool(
+        getattr(modified, "cancel_at_period_end", True)
+    )
+    cpe = getattr(modified, "current_period_end", None)
+    if cpe is not None:
+        sub.current_period_end = datetime.utcfromtimestamp(int(cpe))
+    db.add(sub)
+
+    logger.info(
+        "stripe_subscription_cancel_requested",
+        extra={
+            "user_id": current_user.id,
+            "sub_id": sub.id,
+            "stripe_sub_id": sub.stripe_subscription_id,
+        },
+    )
+    return sub
 
 
 @router.post("/webhook", include_in_schema=False)
