@@ -498,3 +498,86 @@ def test_cancel_subscription_stripe_error_returns_502(
     assert resp.status_code == 502
     # DB row was NOT modified.
     assert sub.cancel_at_period_end is False
+
+
+# --------------------------------------------------------------------------- #
+# Feature 2: POST /api/v1/billing/resume-subscription                         #
+# --------------------------------------------------------------------------- #
+
+
+def test_resume_subscription_happy_path(
+    client: TestClient, fake_session: FakeAsyncSession
+):
+    """Sub flagged for cancel → resume reverts cancel_at_period_end to False."""
+    user = User(id=60, email="resume@example.com", hashed_password="x", credits_remaining=10)
+    sub = Subscription(
+        id=701,
+        user_id=60,
+        plan_id=2,
+        start_subscription=datetime.utcnow(),
+        end_subscription=datetime.utcnow(),
+        stripe_subscription_id="sub_resume_ok",
+        status="active",
+        cancel_at_period_end=True,
+    )
+    fake_session.seed(User, user)
+    fake_session.seed(Subscription, sub)
+    fake_session.set_scalar("subscriptions.user_id", sub)
+
+    modified_sub = SimpleNamespace(
+        id="sub_resume_ok",
+        status="active",
+        cancel_at_period_end=False,
+        current_period_end=1702592000,
+    )
+
+    app.dependency_overrides[get_current_user] = _override_user(user)
+    try:
+        with patch.object(
+            billing_router.stripe.Subscription,
+            "modify",
+            return_value=modified_sub,
+        ) as mock_modify:
+            resp = client.post("/api/v1/billing/resume-subscription")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 200
+    assert resp.json()["cancel_at_period_end"] is False
+    mock_modify.assert_called_once_with("sub_resume_ok", cancel_at_period_end=False)
+    assert sub.cancel_at_period_end is False
+
+
+def test_resume_subscription_404_when_not_pending_cancel(
+    client: TestClient, fake_session: FakeAsyncSession
+):
+    """If sub.cancel_at_period_end is False, resume returns 404."""
+    user = User(id=61, email="x@example.com", hashed_password="x", credits_remaining=0)
+    sub = Subscription(
+        id=702,
+        user_id=61,
+        plan_id=2,
+        start_subscription=datetime.utcnow(),
+        end_subscription=datetime.utcnow(),
+        stripe_subscription_id="sub_no_pending",
+        status="active",
+        cancel_at_period_end=False,
+    )
+    fake_session.seed(User, user)
+    fake_session.seed(Subscription, sub)
+    # IMPORTANT: do NOT register the scalar handler — FakeAsyncSession.scalar
+    # returns None by default, simulating the WHERE filter rejecting this row.
+
+    app.dependency_overrides[get_current_user] = _override_user(user)
+    try:
+        with patch.object(
+            billing_router.stripe.Subscription,
+            "modify",
+        ) as mock_modify:
+            resp = client.post("/api/v1/billing/resume-subscription")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 404
+    mock_modify.assert_not_called()
+    assert sub.cancel_at_period_end is False

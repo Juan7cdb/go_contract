@@ -327,6 +327,71 @@ async def cancel_subscription(
     return sub
 
 
+@router.post("/resume-subscription", response_model=SubscriptionCancellationResponse)
+async def resume_subscription(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Subscription:
+    """Revert a previously requested cancellation (cancel_at_period_end=False).
+
+    Only matches subscriptions currently flagged for cancellation; if
+    the user has no sub or it is not pending cancel, we return 404 so
+    the client can re-render the Cancel button instead of Resume.
+    """
+    sub = await db.scalar(
+        select(Subscription)
+        .where(
+            Subscription.user_id == current_user.id,
+            Subscription.stripe_subscription_id.is_not(None),
+            Subscription.status.in_(("active", "past_due", "trialing")),
+            Subscription.cancel_at_period_end.is_(True),
+        )
+        .order_by(Subscription.id.desc())
+    )
+    if sub is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No subscription pending cancellation",
+        )
+
+    try:
+        modified = stripe.Subscription.modify(
+            sub.stripe_subscription_id,
+            cancel_at_period_end=False,
+        )
+    except stripe.error.StripeError as exc:
+        logger.error(
+            "stripe_resume_subscription_failed",
+            extra={
+                "user_id": current_user.id,
+                "sub_id": sub.id,
+                "error": str(exc),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to resume subscription in Stripe",
+        ) from exc
+
+    sub.cancel_at_period_end = bool(
+        getattr(modified, "cancel_at_period_end", False)
+    )
+    cpe = getattr(modified, "current_period_end", None)
+    if cpe is not None:
+        sub.current_period_end = datetime.utcfromtimestamp(int(cpe))
+    db.add(sub)
+
+    logger.info(
+        "stripe_subscription_resume_requested",
+        extra={
+            "user_id": current_user.id,
+            "sub_id": sub.id,
+            "stripe_sub_id": sub.stripe_subscription_id,
+        },
+    )
+    return sub
+
+
 @router.post("/webhook", include_in_schema=False)
 async def stripe_webhook(
     request: Request,
