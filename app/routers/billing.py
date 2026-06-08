@@ -262,6 +262,79 @@ async def list_payments(
     return list(result.all())
 
 
+async def _modify_cancel_at_period_end(
+    *,
+    current_user: User,
+    db: AsyncSession,
+    flag: bool,
+    log_event: str,
+    missing_sub_detail: str,
+    stripe_error_detail: str,
+    require_pending_cancel: bool,
+) -> Subscription:
+    """Shared body for /cancel-subscription and /resume-subscription.
+
+    Looks up the user's active Stripe subscription (optionally constrained
+    to those already pending cancel), calls stripe.Subscription.modify
+    with the requested `cancel_at_period_end` value, mirrors the result
+    onto the local row, and returns the row. Raises HTTPException on
+    missing subscription (404) or Stripe failure (502).
+    """
+    where = [
+        Subscription.user_id == current_user.id,
+        Subscription.stripe_subscription_id.is_not(None),
+        Subscription.status.in_(("active", "past_due", "trialing")),
+    ]
+    if require_pending_cancel:
+        where.append(Subscription.cancel_at_period_end.is_(True))
+
+    sub = await db.scalar(
+        select(Subscription).where(*where).order_by(Subscription.id.desc())
+    )
+    if sub is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=missing_sub_detail,
+        )
+
+    try:
+        modified = stripe.Subscription.modify(
+            sub.stripe_subscription_id,
+            cancel_at_period_end=flag,
+        )
+    except stripe.error.StripeError as exc:
+        logger.error(
+            f"stripe_{log_event}_failed",
+            extra={
+                "user_id": current_user.id,
+                "sub_id": sub.id,
+                "error": str(exc),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=stripe_error_detail,
+        ) from exc
+
+    sub.cancel_at_period_end = bool(
+        getattr(modified, "cancel_at_period_end", flag)
+    )
+    cpe = getattr(modified, "current_period_end", None)
+    if cpe is not None:
+        sub.current_period_end = datetime.utcfromtimestamp(int(cpe))
+    db.add(sub)
+
+    logger.info(
+        f"stripe_{log_event}_requested",
+        extra={
+            "user_id": current_user.id,
+            "sub_id": sub.id,
+            "stripe_sub_id": sub.stripe_subscription_id,
+        },
+    )
+    return sub
+
+
 @router.post("/cancel-subscription", response_model=SubscriptionCancellationResponse)
 async def cancel_subscription(
     current_user: User = Depends(get_current_user),
@@ -274,57 +347,15 @@ async def cancel_subscription(
     to wait for the `customer.subscription.updated` webhook — the
     webhook will land afterwards and overwrite with the same value.
     """
-    sub = await db.scalar(
-        select(Subscription)
-        .where(
-            Subscription.user_id == current_user.id,
-            Subscription.stripe_subscription_id.is_not(None),
-            Subscription.status.in_(("active", "past_due", "trialing")),
-        )
-        .order_by(Subscription.id.desc())
+    return await _modify_cancel_at_period_end(
+        current_user=current_user,
+        db=db,
+        flag=True,
+        log_event="subscription_cancel",
+        missing_sub_detail="No active subscription found",
+        stripe_error_detail="Failed to cancel subscription in Stripe",
+        require_pending_cancel=False,
     )
-    if sub is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active subscription found",
-        )
-
-    try:
-        modified = stripe.Subscription.modify(
-            sub.stripe_subscription_id,
-            cancel_at_period_end=True,
-        )
-    except stripe.error.StripeError as exc:
-        logger.error(
-            "stripe_cancel_subscription_failed",
-            extra={
-                "user_id": current_user.id,
-                "sub_id": sub.id,
-                "error": str(exc),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to cancel subscription in Stripe",
-        ) from exc
-
-    sub.cancel_at_period_end = bool(
-        getattr(modified, "cancel_at_period_end", True)
-    )
-    cpe = getattr(modified, "current_period_end", None)
-    if cpe is not None:
-        sub.current_period_end = datetime.utcfromtimestamp(int(cpe))
-    db.add(sub)
-
-    logger.info(
-        "stripe_subscription_cancel_requested",
-        extra={
-            "user_id": current_user.id,
-            "sub_id": sub.id,
-            "stripe_sub_id": sub.stripe_subscription_id,
-        },
-    )
-    return sub
 
 
 @router.post("/resume-subscription", response_model=SubscriptionCancellationResponse)
@@ -338,58 +369,15 @@ async def resume_subscription(
     the user has no sub or it is not pending cancel, we return 404 so
     the client can re-render the Cancel button instead of Resume.
     """
-    sub = await db.scalar(
-        select(Subscription)
-        .where(
-            Subscription.user_id == current_user.id,
-            Subscription.stripe_subscription_id.is_not(None),
-            Subscription.status.in_(("active", "past_due", "trialing")),
-            Subscription.cancel_at_period_end.is_(True),
-        )
-        .order_by(Subscription.id.desc())
+    return await _modify_cancel_at_period_end(
+        current_user=current_user,
+        db=db,
+        flag=False,
+        log_event="subscription_resume",
+        missing_sub_detail="No subscription pending cancellation",
+        stripe_error_detail="Failed to resume subscription in Stripe",
+        require_pending_cancel=True,
     )
-    if sub is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No subscription pending cancellation",
-        )
-
-    try:
-        modified = stripe.Subscription.modify(
-            sub.stripe_subscription_id,
-            cancel_at_period_end=False,
-        )
-    except stripe.error.StripeError as exc:
-        logger.error(
-            "stripe_resume_subscription_failed",
-            extra={
-                "user_id": current_user.id,
-                "sub_id": sub.id,
-                "error": str(exc),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to resume subscription in Stripe",
-        ) from exc
-
-    sub.cancel_at_period_end = bool(
-        getattr(modified, "cancel_at_period_end", False)
-    )
-    cpe = getattr(modified, "current_period_end", None)
-    if cpe is not None:
-        sub.current_period_end = datetime.utcfromtimestamp(int(cpe))
-    db.add(sub)
-
-    logger.info(
-        "stripe_subscription_resume_requested",
-        extra={
-            "user_id": current_user.id,
-            "sub_id": sub.id,
-            "stripe_sub_id": sub.stripe_subscription_id,
-        },
-    )
-    return sub
 
 
 @router.post("/webhook", include_in_schema=False)
