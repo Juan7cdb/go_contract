@@ -12,8 +12,6 @@ overrides + TestClient). See Phase 1 of
 """
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,42 +19,7 @@ from app.core.database import get_db
 from app.dependencies.auth import get_current_user
 from app.main import app
 from app.models import User
-
-
-# --------------------------------------------------------------------------- #
-# Fake async DB session                                                       #
-# --------------------------------------------------------------------------- #
-
-
-class FakeAsyncSession:
-    """Minimal in-memory stand-in for `AsyncSession`.
-
-    The profile router only calls `db.add(current_user)` (and `await db.delete`
-    for account deletion, not exercised here). The auto-flush/commit happens via
-    the `get_db` generator in prod; in tests we no-op because the fake `User`
-    is mutated by reference.
-    """
-
-    def __init__(self) -> None:
-        self.added: list[Any] = []
-
-    def add(self, obj: Any) -> None:
-        self.added.append(obj)
-
-    async def flush(self) -> None:
-        return None
-
-    async def commit(self) -> None:
-        return None
-
-    async def rollback(self) -> None:
-        return None
-
-    async def close(self) -> None:
-        return None
-
-    async def delete(self, obj: Any) -> None:
-        return None
+from tests.conftest import FakeAsyncSession
 
 
 # --------------------------------------------------------------------------- #
@@ -110,14 +73,16 @@ def client(fake_session: FakeAsyncSession, fake_user: User):
 def test_get_me_returns_preferences(client: TestClient, fake_user: User):
     """`GET /api/v1/auth/me` must include `preferences` in the response body.
 
-    `/auth/me` returns a plain dict (no `response_model`) so the seeded
-    preferences flow through unchanged — extra typed keys are NOT injected here.
+    `/auth/me` now serializes through `AuthMeResponse` with
+    `response_model_exclude_none=True` + `response_model_by_alias=True`, so
+    unset typed fields are dropped and the seeded camelCase keys survive
+    untouched. The result happens to be an exact match against the seed.
     """
     resp = client.get("/api/v1/auth/me")
     assert resp.status_code == 200
     body = resp.json()
     assert "preferences" in body
-    # Plain dict response — exact match against seed.
+    # exclude_none + by_alias collapse the typed shape back to the seed.
     assert body["preferences"] == {"language": "en", "autoSave": True}
 
 
@@ -132,8 +97,8 @@ def test_update_profile_partial_preferences_merges(
     )
     assert resp.status_code == 200
     body = resp.json()
-    # ProfileResponse serializes UserPreferences with all typed fields
-    # (None for unset) — assert key-by-key, not by exact equality.
+    # ProfileResponse uses `response_model_exclude_none=True`, so only
+    # the keys actually set appear in the wire body — assert key-by-key.
     assert body["preferences"]["language"] == "es"
     # autoSave must be preserved from the seed.
     assert body["preferences"]["autoSave"] is True

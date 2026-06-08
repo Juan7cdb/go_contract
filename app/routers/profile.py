@@ -30,7 +30,13 @@ def _build_profile_response(user: User, storage: StorageService) -> ProfileRespo
     )
 
 
-@router.get("/", response_model=ProfileResponse, summary="Obtener perfil del usuario")
+@router.get(
+    "/",
+    response_model=ProfileResponse,
+    response_model_exclude_none=True,
+    response_model_by_alias=True,
+    summary="Obtener perfil del usuario",
+)
 async def get_profile(
     current_user: User = Depends(get_current_user),
     storage: StorageService = Depends(get_storage_service),
@@ -39,7 +45,13 @@ async def get_profile(
     return _build_profile_response(current_user, storage)
 
 
-@router.put("/", response_model=ProfileResponse, summary="Actualizar perfil y preferencias")
+@router.put(
+    "/",
+    response_model=ProfileResponse,
+    response_model_exclude_none=True,
+    response_model_by_alias=True,
+    summary="Actualizar perfil y preferencias",
+)
 async def update_profile(
     profile_data: ProfileUpdate,
     db: AsyncSession = Depends(get_db),
@@ -58,7 +70,11 @@ async def update_profile(
             # explicitly clear a preference by sending its value as `null` —
             # `exclude_none` would silently drop the key and the merge would
             # keep the previously persisted value forever.
-            prefs_dict = profile_data.preferences.model_dump(exclude_unset=True)
+            # `by_alias=True` keeps the merged dict in camelCase on disk,
+            # matching the existing JSON column shape (frontend payload).
+            prefs_dict = profile_data.preferences.model_dump(
+                by_alias=True, exclude_unset=True
+            )
             current_user.preferences = {**current_prefs, **prefs_dict}
 
         db.add(current_user)

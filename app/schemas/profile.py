@@ -1,5 +1,6 @@
 """Profile schemas matching Supabase profiles table."""
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic.alias_generators import to_camel
 from typing import Optional
 from datetime import datetime
 
@@ -8,21 +9,30 @@ class UserPreferences(BaseModel):
     """Typed schema for user preferences stored in `users.preferences` JSON column.
 
     All fields are optional to remain retro-compatible with existing rows that
-    may have missing or extra keys. Field names use camelCase to align with the
-    payload the frontend sends today (avoids a name-translation layer).
+    may have missing or extra keys. Python field names use snake_case (matching
+    the rest of the codebase) while the wire format stays camelCase via
+    `alias_generator=to_camel` — the frontend payload and the persisted JSON
+    column both keep their existing camelCase keys.
+
+    `populate_by_name=True` lets callers build instances using either the
+    Python name (`auto_save=True`) or the camelCase alias (`autoSave=True`).
 
     `extra='allow'` preserves any keys not declared here (legacy or
     forward-compat) instead of silently dropping them on serialization — both
     `GET /profile/` and `PUT /profile/` returns now keep e.g. `{"theme": "dark"}`
     intact rather than losing it the moment a response is built.
     """
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(
+        extra='allow',
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
 
     language: Optional[str] = None
     timezone: Optional[str] = None
-    autoSave: Optional[bool] = None
-    aiSuggestions: Optional[bool] = None
-    twoFactor: Optional[bool] = None
+    auto_save: Optional[bool] = None      # wire: autoSave
+    ai_suggestions: Optional[bool] = None  # wire: aiSuggestions
+    two_factor: Optional[bool] = None      # wire: twoFactor
 
 
 class ProfileBase(BaseModel):
@@ -64,3 +74,8 @@ class ProfilePublic(BaseModel):
     id: str
     first_name: str
     last_name: str
+
+
+class AuthMeResponse(ProfileResponse):
+    """/auth/me response: ProfileResponse extended with credits_remaining."""
+    credits_remaining: int = 0

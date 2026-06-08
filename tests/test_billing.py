@@ -24,77 +24,7 @@ from app.core.database import get_db
 from app.main import app
 from app.models import Payment, Plan, StripeEvent, Subscription, User
 from app.routers import billing as billing_router
-
-
-# --------------------------------------------------------------------------- #
-# Fake async DB session                                                       #
-# --------------------------------------------------------------------------- #
-
-
-class FakeAsyncSession:
-    """Minimal in-memory stand-in for `AsyncSession`.
-
-    Implements only the subset used by the webhook + handlers:
-    - `add(obj)` records the object (and assigns a fake id if missing).
-    - `get(Model, pk)` returns from an internal dict keyed by (Model, pk).
-    - `scalar(stmt)` looks up via a registered callback per statement.
-    - `flush()` / `commit()` / `rollback()` / `close()` are no-ops.
-    """
-
-    def __init__(self) -> None:
-        self.store: dict[tuple[type, Any], Any] = {}
-        self.added: list[Any] = []
-        # Map of "select description" → callable(self) -> object. Tests
-        # can inject specific scalar() responses keyed by repr of stmt.
-        self.scalar_handlers: dict[str, Any] = {}
-        self._auto_id = 1000
-
-    # ---- registration helpers (used by tests) -----------------------------
-
-    def seed(self, model: type, obj: Any) -> None:
-        self.store[(model, obj.id)] = obj
-
-    def set_scalar(self, key: str, value: Any) -> None:
-        self.scalar_handlers[key] = value
-
-    # ---- AsyncSession surface --------------------------------------------
-
-    def add(self, obj: Any) -> None:
-        if getattr(obj, "id", None) is None:
-            obj.id = self._auto_id
-            self._auto_id += 1
-        # Replace existing rows by (type, id) so subsequent get() sees updates.
-        self.store[(type(obj), obj.id)] = obj
-        self.added.append(obj)
-
-    async def get(self, model: type, pk: Any) -> Any:
-        return self.store.get((model, pk))
-
-    async def scalar(self, stmt: Any) -> Any:
-        # Resolve by inspecting the compiled SQL for a hint. Test code
-        # registers handlers under string keys it expects to appear.
-        try:
-            sql = str(stmt)
-        except Exception:  # noqa: BLE001
-            sql = ""
-        for key, value in self.scalar_handlers.items():
-            if key in sql:
-                if callable(value):
-                    return value()
-                return value
-        return None
-
-    async def flush(self) -> None:
-        return None
-
-    async def commit(self) -> None:
-        return None
-
-    async def rollback(self) -> None:
-        return None
-
-    async def close(self) -> None:
-        return None
+from tests.conftest import FakeAsyncSession
 
 
 @pytest.fixture

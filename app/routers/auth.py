@@ -25,6 +25,7 @@ from app.schemas.auth import (
     PasswordUpdate,
     AuthResponse,
 )
+from app.schemas.profile import AuthMeResponse
 from app.dependencies.auth import get_current_user
 from app.services.email_service import send_reset_email
 
@@ -235,7 +236,13 @@ async def update_password(
         )
 
 
-@router.get("/me", summary="Obtener información del usuario actual")
+@router.get(
+    "/me",
+    response_model=AuthMeResponse,
+    response_model_exclude_none=True,
+    response_model_by_alias=True,
+    summary="Obtener información del usuario actual",
+)
 async def get_current_user_info(
     current_user: User = Depends(get_current_user),
     storage: StorageService = Depends(get_storage_service),
@@ -244,12 +251,12 @@ async def get_current_user_info(
     Get current user profile.
     """
     return {
-        "id": current_user.id,
+        "id": str(current_user.id),
         "email": current_user.email,
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
         "avatar_url": storage.generate_avatar_url(current_user.avatar_key),
         "credits_remaining": current_user.credits_remaining,
         "preferences": current_user.preferences or {},
-        "created_at": current_user.created_at
+        "created_at": current_user.created_at,
     }
