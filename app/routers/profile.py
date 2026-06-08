@@ -54,7 +54,11 @@ async def update_profile(
             current_user.last_name = profile_data.last_name
         if profile_data.preferences is not None:
             current_prefs = current_user.preferences or {}
-            prefs_dict = profile_data.preferences.model_dump(exclude_none=True)
+            # `exclude_unset=True` (not `exclude_none=True`) so clients can
+            # explicitly clear a preference by sending its value as `null` —
+            # `exclude_none` would silently drop the key and the merge would
+            # keep the previously persisted value forever.
+            prefs_dict = profile_data.preferences.model_dump(exclude_unset=True)
             current_user.preferences = {**current_prefs, **prefs_dict}
 
         db.add(current_user)

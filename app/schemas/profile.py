@@ -1,5 +1,5 @@
 """Profile schemas matching Supabase profiles table."""
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 
@@ -10,7 +10,14 @@ class UserPreferences(BaseModel):
     All fields are optional to remain retro-compatible with existing rows that
     may have missing or extra keys. Field names use camelCase to align with the
     payload the frontend sends today (avoids a name-translation layer).
+
+    `extra='allow'` preserves any keys not declared here (legacy or
+    forward-compat) instead of silently dropping them on serialization — both
+    `GET /profile/` and `PUT /profile/` returns now keep e.g. `{"theme": "dark"}`
+    intact rather than losing it the moment a response is built.
     """
+    model_config = ConfigDict(extra='allow')
+
     language: Optional[str] = None
     timezone: Optional[str] = None
     autoSave: Optional[bool] = None

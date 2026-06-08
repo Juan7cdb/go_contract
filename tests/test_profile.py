@@ -201,3 +201,46 @@ def test_update_profile_typed_preferences_rejects_invalid_types(
         json={"preferences": {"autoSave": "not-a-bool"}},
     )
     assert resp.status_code == 422
+
+
+def test_update_profile_explicit_null_clears_key(
+    client: TestClient, fake_user: User
+):
+    """Sending `{key: null}` must clear the persisted value, not be ignored.
+
+    Regression guard: `model_dump(exclude_unset=True)` (not `exclude_none=True`)
+    so explicit nulls flow through the merge and overwrite the stored value.
+    """
+    # Seed had autoSave=True.
+    resp = client.put(
+        "/api/v1/profile/",
+        json={"preferences": {"autoSave": None}},
+    )
+    assert resp.status_code == 200
+    # The stored dict now has autoSave=None — frontend can finally "unset" it.
+    assert fake_user.preferences["autoSave"] is None
+    # Other seeded keys are preserved.
+    assert fake_user.preferences["language"] == "en"
+
+
+def test_update_profile_preserves_extra_legacy_keys(
+    client: TestClient, fake_user: User
+):
+    """Legacy/extra preference keys not declared in UserPreferences survive a PUT.
+
+    Regression guard: `model_config = ConfigDict(extra='allow')` on
+    UserPreferences. Without it, Pydantic silently drops `theme` from the
+    response body even though the underlying row keeps it.
+    """
+    fake_user.preferences = {"language": "en", "theme": "dark"}
+
+    resp = client.put(
+        "/api/v1/profile/",
+        json={"preferences": {"language": "es"}},
+    )
+    assert resp.status_code == 200
+    # Response body keeps the legacy key.
+    assert resp.json()["preferences"].get("theme") == "dark"
+    # Underlying user model keeps it too.
+    assert fake_user.preferences["theme"] == "dark"
+    assert fake_user.preferences["language"] == "es"
