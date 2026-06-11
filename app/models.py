@@ -150,6 +150,9 @@ class ContractDraft(Base):
     template_id: Mapped[int] = mapped_column(ForeignKey("template_contracts.id"), nullable=False, index=True)
     current_step: Mapped[int] = mapped_column(Integer, default=1)
     form_data: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # Bumped to 2 on 2026-06-11 when the MSA wizard inserted a "Parties Information" step at index 3.
+    # Legacy rows backfill to 1 via alembic; frontend uses this to migrate restored drafts.
+    wizard_version: Mapped[int] = mapped_column(Integer, default=2, server_default="1", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

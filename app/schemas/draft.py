@@ -6,6 +6,7 @@ class ContractDraftBase(BaseModel):
     template_id: int
     current_step: int = 1
     form_data: Dict[str, Any] = Field(default_factory=dict)
+    wizard_version: int = 2
 
 class ContractDraftCreate(ContractDraftBase):
     pass

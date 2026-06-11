@@ -36,7 +36,8 @@ async def create_draft(
             user_id=current_user.id,
             template_id=draft_data.template_id,
             current_step=draft_data.current_step,
-            form_data=draft_data.form_data
+            form_data=draft_data.form_data,
+            wizard_version=draft_data.wizard_version,
         )
         
         db.add(new_draft)
